@@ -53,6 +53,10 @@ export enum TokenType {
   UNDEFINED_REFERENCE = 'undefinedReference',
   ALIAS_REFERENCE = 'aliasReference',
   
+  // Space indirection operations
+  SPACE_INDIRECTION = 'spaceIndirection',
+  INDIRECTION_ARROW = 'indirectionArrow',
+  
   // Context indicators
   CONTEXT_BRACKET = 'contextBracket',
   COMMENT = 'comment',

@@ -102,6 +102,18 @@ export class ISATokenizer {
       return;
     }
     
+    // Space indirection operation
+    if (char === '$') {
+      this.tokenizeSpaceIndirection();
+      return;
+    }
+    
+    // Indirection arrow (->)
+    if (char === '-' && this.peekChar() === '>') {
+      this.tokenizeIndirectionArrow();
+      return;
+    }
+    
     // Numeric literals or identifiers
     if (char && (this.isAlphaNumeric(char) || char === '0')) {
       this.tokenizeAlphaNumeric();
@@ -254,6 +266,41 @@ export class ISATokenizer {
     
     const location = this.createLocation(start, this.getCurrentPosition());
     this.addToken(TokenType.EQUALS_SIGN, '=', location);
+  }
+
+  private tokenizeSpaceIndirection(): void {
+    const start = this.getCurrentPosition();
+    const startPos = this.position;
+    this.advance(); // skip '$'
+    
+    // Read the space tag following the $, but stop at '-' for -> operator
+    while (this.position < this.content.length && 
+           this.content[this.position] && 
+           this.content[this.position] !== '-' &&
+           this.isIdentifierChar(this.content[this.position]!)) {
+      this.advance();
+    }
+    
+    const text = this.content.slice(startPos, this.position);
+    const spaceTag = text.slice(1); // Remove the $ prefix
+    const location = this.createLocation(start, this.getCurrentPosition());
+    
+    // Only create token if we found a space tag
+    if (spaceTag.length > 0) {
+      this.addToken(TokenType.SPACE_INDIRECTION, text, location, spaceTag);
+    } else {
+      // Just advance past the $ if no identifier follows
+      // This will be treated as a regular character
+    }
+  }
+
+  private tokenizeIndirectionArrow(): void {
+    const start = this.getCurrentPosition();
+    this.advance(); // skip '-'
+    this.advance(); // skip '>'
+    
+    const location = this.createLocation(start, this.getCurrentPosition());
+    this.addToken(TokenType.INDIRECTION_ARROW, '->', location);
   }
 
   private tokenizeAlphaNumeric(): void {
@@ -426,6 +473,13 @@ export class ISATokenizer {
       }
       this.position++;
     }
+  }
+
+  private peekChar(): string | undefined {
+    if (this.position + 1 < this.content.length) {
+      return this.content[this.position + 1];
+    }
+    return undefined;
   }
 
   private getCurrentPosition(): Position {
