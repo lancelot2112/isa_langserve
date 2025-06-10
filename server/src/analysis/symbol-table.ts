@@ -149,6 +149,46 @@ export class ISASymbolTable implements SymbolTable {
   }
 
   /**
+   * Check if a space is defined
+   */
+  hasSpace(spaceTag: string): boolean {
+    return this.scopes.has(spaceTag);
+  }
+
+  /**
+   * Validate space indirection reference ($space->field.subfield)
+   */
+  validateSpaceIndirection(spaceTag: string, fieldPath: string): { isValid: boolean; error?: string } {
+    // Check if the space exists
+    if (!this.hasSpace(spaceTag)) {
+      return { isValid: false, error: `Undefined space '${spaceTag}'` };
+    }
+
+    // Parse the field path (field.subfield)
+    const [fieldName, subfieldName] = fieldPath.split('.');
+    
+    if (!fieldName) {
+      return { isValid: false, error: 'Field name is required in space indirection' };
+    }
+
+    // Check if the field exists in the space
+    const field = this.findSymbol(fieldName, spaceTag);
+    if (!field) {
+      return { isValid: false, error: `Field '${fieldName}' not found in space '${spaceTag}'` };
+    }
+
+    // If a subfield is specified, check if it exists
+    if (subfieldName) {
+      const subfield = this.findSymbol(subfieldName, spaceTag);
+      if (!subfield || subfield.type !== 'subfield') {
+        return { isValid: false, error: `Subfield '${subfieldName}' not found in field '${fieldName}' of space '${spaceTag}'` };
+      }
+    }
+
+    return { isValid: true };
+  }
+
+  /**
    * Get all symbols of a specific type
    */
   getSymbolsByType(type: Symbol['type']): Symbol[] {
