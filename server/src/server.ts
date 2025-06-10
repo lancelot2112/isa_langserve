@@ -136,8 +136,13 @@ function updateSemanticTokensLegend(spaceTags: string[]): void {
   }
 }
 
+// Store initialization options
+let initializationOptions: any = {};
+
 // Server initialization
-connection.onInitialize((_params: InitializeParams): InitializeResult => {
+connection.onInitialize((params: InitializeParams): InitializeResult => {
+  // Store initialization options from client
+  initializationOptions = params.initializationOptions || {};
   const capabilities: ServerCapabilities = {
     textDocumentSync: TextDocumentSyncKind.Incremental,
     completionProvider: {
@@ -194,7 +199,9 @@ documents.onDidClose(e => {
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
   const settings = await getDocumentSettings(textDocument.uri);
   
+  connection.console.info(`Called to validate document: ${textDocument.uri}`);
   if (!settings.enableValidation) {
+    connection.console.info(`Validation is disabled`);
     return;
   }
 
@@ -216,7 +223,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
         diagnostic.code = error.code;
       }
 
-      connection.console.info(`Diagnostic for ${textDocument.uri}: ${diagnostic.message} at ${diagnostic.range.start.line}:${diagnostic.range.start.character}`);
+      connection.console.info(`Diagnostic ${diagnostic.message} at ${diagnostic.range.start.line}:${diagnostic.range.start.character}`);
       
       return diagnostic;
     });
@@ -695,7 +702,16 @@ async function getDocumentSettings(resource: string): Promise<ISALanguageServerC
     result = connection.workspace.getConfiguration({
       scopeUri: resource,
       section: 'isaLanguage',
-    }).then(config => config || defaultSettings);
+    }).then(config => {
+      // Merge workspace config with initialization options and defaults
+      const mergedConfig = {
+        ...defaultSettings,
+        ...initializationOptions,
+        ...config
+      };
+      return mergedConfig;
+    });
+    connection.console.info(`Loading validationEnabled=${(await result).enableValidation ? 'enabled' : 'disabled'} for ${resource}`);
     documentSettings.set(resource, result);
   }
   return result;
