@@ -100,6 +100,7 @@ When concatenating, segments are shifted and ORed together to form the final fie
 
 ### 5.2 Basic Language Constructs
 
+#### 5.2.1 Contexts
 - **Context Windows**: Each line starting with a `:<directive>` begins a new context window. Every line after the directive (until a new directive is declared) is within the context window. Directive context windows will never be nested.  The lines between two `:` directives should be able to be folded.
 
 - **Subcontext Windows**: Subcontext windows can be opened up by:
@@ -109,6 +110,7 @@ When concatenating, segments are shifted and ORed together to form the final fie
 
   Each subcontext shall use the default linting and coloring rules unless explicitly overridden by requirements later in this document. Subcontext boundary characters `()` and `{}` shall be highlighted with a different color for each nesting level.
 
+#### 5.2.2 Directives
 - **Directives**: Directives start with a colon (`:`) followed by a directive keyword
   - **Basic Directives**: `:param` defines a parameter, `:space` defines a logical space, `:bus` defines a connection between spaces. Previously listed basic directives including the colon are highlighted (default: `blue gray`). Invalid directives will remain default text color.
   - **Space Directives**: Every `:space <space_tag>` defines a new `space declaration` directive which can be accessed by `:<space_tag>` anytime after a space is defined to declare named/typed `fields` or `instructions` within the space using `:<space_tag> <field_tag>` or `:<space_tag> <instruction_tag>`.
@@ -117,6 +119,10 @@ When concatenating, segments are shifted and ORed together to form the final fie
   - **Core File Directives**: `:include` includes `.isa` and `.isaext` files that the core uses
   - **System File Directives**: `:attach` attaches cores to the system by referencing `:core` files
 
+#### 5.2.3 References
+- **Scoped Reference**: Each space contains a number of `field` or `instruction` declarations that are valid for reference by tag inside that space.  To change the scope to that space one can use the `space directive` indicating we are going to declare a field or instruction in that space.  
+- ** Indirect Reference**: Indirect reference to another space is available by using the `$[space_tag]->[field_tag].[subfield_tag]` operator.  The `$[space_tag]->` changes the scope to allow naming a field or field subfield combination from within that other space.
+ 
 ## 6. Global Parameters (`:param`)
 
 Defines global parameters for the ISA.
