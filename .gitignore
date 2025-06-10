@@ -132,6 +132,9 @@ dist
 # VS Code Extension specific
 *.vsix
 
+# Local Claude Allowances
+.claude/settings.local.json
+
 # TypeScript compiled output
 out/
 lib/
