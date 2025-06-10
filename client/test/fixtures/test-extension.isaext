@@ -1,0 +1,34 @@
+# Test ISA extension file
+:extension base=test-enhanced
+
+# Add new instructions to existing ISA
+:insn sub (rD,rA,rB) mask={OP=0b011111 XO=0b100001000 OE=0 Rc=0} semantics={
+    # Subtract registers
+    rD = rA - rB
+    if (OE) {
+        XER.OV = overflow(rA - rB)
+        XER.SO = XER.SO | XER.OV
+    }
+}
+
+# Add new register fields to existing space
+:reg CR size=32 descr="Condition Register" subfields={
+    LT @(0) descr="Less Than"
+    GT @(1) descr="Greater Than" 
+    EQ @(2) descr="Equal"
+    SO @(3) descr="Summary Overflow"
+}
+
+# Use existing space tags and field references
+:insn cmp (BF,rA,rB) mask={OP=0b011111 XO=0b000000000} subfields={
+    BF @(6-8) op=reg.CR descr="Condition field"
+} semantics={
+    # Compare registers
+    if (rA < rB) {
+        CR[BF].LT = 1
+    } elif (rA > rB) {
+        CR[BF].GT = 1
+    } else {
+        CR[BF].EQ = 1
+    }
+}

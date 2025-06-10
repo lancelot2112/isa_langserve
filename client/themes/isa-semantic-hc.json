@@ -1,0 +1,45 @@
+{
+  "name": "ISA High Contrast",
+  "type": "hc",
+  "semanticHighlighting": true,
+  "semanticTokenColors": {
+    "directive": "#569cd6",
+    "spaceDirective": "#c586c0",
+    "spaceTag": "#4fc1ff",
+    "spaceTag.ram": "#4fc1ff",
+    "spaceTag.reg": "#c586c0",
+    "spaceTag.insn": "#9cdcfe",
+    "spaceTag.bus": "#ffff00",
+    "fieldTag": "#ffff00",
+    "subfieldTag": "#ffd700",
+    "instructionTag": "#9cdcfe",
+    "spaceOptionTag": "#569cd6",
+    "fieldOptionTag": "#569cd6",
+    "busOptionTag": "#569cd6",
+    "subfieldOptionTag": "#569cd6",
+    "instructionOptionTag": "#569cd6",
+    "rangeOptionTag": "#569cd6",
+    "equalsSign": "#569cd6",
+    "numericLiteral": "#00ff00",
+    "bitField": "#ff8c00",
+    "quotedString": "#ff8c00",
+    "sourceOperand": "#00ffff",
+    "targetOperand": "#ff0080",
+    "funcField": "#c586c0",
+    "immField": "#00ff00",
+    "fieldReference": "#ffffff",
+    "undefinedReference": {
+      "foreground": "#ff0000",
+      "fontStyle": "underline bold"
+    },
+    "aliasReference": "#ffd700",
+    "contextBracket": "#ffffff",
+    "comment": "#7ca668"
+  },
+  "colors": {
+    "editor.background": "#000000",
+    "editor.foreground": "#ffffff",
+    "editorLineNumber.foreground": "#ffffff",
+    "editorLineNumber.activeForeground": "#ffffff"
+  }
+}

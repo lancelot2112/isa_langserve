@@ -1,0 +1,45 @@
+{
+  "name": "ISA Light",
+  "type": "light",
+  "semanticHighlighting": true,
+  "semanticTokenColors": {
+    "directive": "#0000ff",
+    "spaceDirective": "#af00db",
+    "spaceTag": "#267f99",
+    "spaceTag.ram": "#267f99",
+    "spaceTag.reg": "#af00db",
+    "spaceTag.insn": "#001080",
+    "spaceTag.bus": "#b8860b",
+    "fieldTag": "#795e26",
+    "subfieldTag": "#9a5b13",
+    "instructionTag": "#001080",
+    "spaceOptionTag": "#0000ff",
+    "fieldOptionTag": "#0000ff",
+    "busOptionTag": "#0000ff",
+    "subfieldOptionTag": "#0000ff",
+    "instructionOptionTag": "#0000ff",
+    "rangeOptionTag": "#0000ff",
+    "equalsSign": "#0000ff",
+    "numericLiteral": "#098658",
+    "bitField": "#a31515",
+    "quotedString": "#a31515",
+    "sourceOperand": "#0451a5",
+    "targetOperand": "#e51400",
+    "funcField": "#af00db",
+    "immField": "#098658",
+    "fieldReference": "#001080",
+    "undefinedReference": {
+      "foreground": "#e51400",
+      "fontStyle": "underline"
+    },
+    "aliasReference": "#9a5b13",
+    "contextBracket": "#808080",
+    "comment": "#008000"
+  },
+  "colors": {
+    "editor.background": "#ffffff",
+    "editor.foreground": "#000000",
+    "editorLineNumber.foreground": "#237893",
+    "editorLineNumber.activeForeground": "#0b216f"
+  }
+}

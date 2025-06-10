@@ -1,0 +1,23 @@
+# Source files
+src/**
+test/**
+*.ts
+*.map
+
+# Build files
+webpack.config.js
+tsconfig.json
+.eslintrc.js
+
+# Development files
+node_modules/
+.git/
+.DS_Store
+*.vsix
+
+# Documentation
+*.md
+!README.md
+
+# Logs
+*.log

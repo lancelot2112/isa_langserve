@@ -1,0 +1,65 @@
+# Enhanced test ISA file for comprehensive extension testing
+:param ENDIAN=big
+
+# Basic space definitions with unique colors
+:space reg addr=0x20 word=64 type=register
+:space insn addr=32 word=32 type=ro  
+:space ram addr=32 word=8 type=memory
+
+# Register definitions in reg space context
+:reg GPR size=32 count=32 name=r%d descr="General Purpose Registers"
+:reg XER size=32 reset=0 descr="Fixed Point Exception Register" subfields={
+    SO @(0) descr="Summary Overflow"
+    OV @(1) descr="Overflow"
+    CA @(2) descr="Carry"
+    Reserved @(3-31) descr="Reserved bits"
+}
+
+# Field alias
+:reg SP alias=r1 descr="Stack Pointer"
+
+# Instruction space definitions
+:insn size=32 subfields={
+    OP @(0-5) descr="Primary opcode"
+    rA @(11-15) op=reg.GPR descr="Source register A" 
+    rB @(16-20) op=reg.GPR descr="Source register B"
+    rD @(6-10) op=reg.GPR descr="Destination register"
+    XO @(22-30) descr="Extended opcode"
+    OE @(21) op=func descr="Overflow enable"
+    Rc @(31) op=func descr="Record condition"
+}
+
+# Instruction definitions
+:insn add (rD,rA,rB) mask={OP=0b011111 XO=0b100001010 OE=0 Rc=0} semantics={
+    # Add two registers
+    rD = rA + rB
+    if (OE) {
+        # Check for overflow
+        XER.OV = overflow(rA + rB)
+        XER.SO = XER.SO | XER.OV
+    }
+}
+
+:insn addi (rD,rA,SIMM) mask={OP=0b001110} subfields={
+    SIMM @(16-31) op=imm descr="Signed immediate value"
+} semantics={
+    # Add immediate
+    if (rA == 0) {
+        rD = SIMM
+    } else {
+        rD = rA + SIMM  
+    }
+}
+
+# Bit field examples with concatenation
+:reg DCRN subfields={
+    # Complex bit field with concatenation
+    DCRN @(16-20|11-15) descr="Device Control Register Number"
+    Reserved @(0-10|21-31) descr="Reserved"
+}
+
+# Numeric literal examples
+:param BASE_ADDR=0x12345678
+:param MASK_VALUE=0b11110000
+:param OCTAL_VAL=0o777
+:param DECIMAL_VAL=255

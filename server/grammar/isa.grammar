@@ -1,0 +1,265 @@
+module.exports = grammar({
+  name: 'isa',
+
+  rules: {
+    source_file: $ => repeat(choice(
+      $.directive,
+      $.comment,
+      $._newline,
+    )),
+
+    directive: $ => choice(
+      $.param_directive,
+      $.space_directive,
+      $.bus_directive,
+      $.field_directive,
+      $.instruction_directive,
+      $.include_directive,
+      $.attach_directive,
+    ),
+
+    // Parameter directive: :param NAME=VALUE
+    param_directive: $ => seq(
+      ':param',
+      $.identifier,
+      '=',
+      choice($.numeric_literal, $.identifier),
+      optional($.comment),
+    ),
+
+    // Space directive: :space <tag> [options...]
+    space_directive: $ => seq(
+      ':space',
+      $.space_tag,
+      repeat($.space_option),
+      optional($.comment),
+    ),
+
+    space_option: $ => choice(
+      seq('addr', '=', $.numeric_literal),
+      seq('word', '=', $.numeric_literal),
+      seq('type', '=', $.space_type),
+      seq('align', '=', $.numeric_literal),
+      seq('endian', '=', choice('big', 'little')),
+    ),
+
+    space_type: $ => choice('rw', 'ro', 'memio', 'register'),
+
+    // Bus directive: :bus <tag> addr=<bits> ranges={...}
+    bus_directive: $ => seq(
+      ':bus',
+      $.identifier,
+      repeat(choice(
+        seq('addr', '=', $.numeric_literal),
+        seq('ranges', '=', $.ranges_block),
+      )),
+      optional($.comment),
+    ),
+
+    ranges_block: $ => seq(
+      '{',
+      repeat($.range_definition),
+      '}',
+    ),
+
+    range_definition: $ => seq(
+      $.numeric_literal,
+      '->',
+      $.space_tag,
+      repeat(choice(
+        seq('prio', '=', $.numeric_literal),
+        seq('offset', '=', $.numeric_literal),
+        seq('buslen', '=', $.numeric_literal),
+      )),
+      optional($.comment),
+    ),
+
+    // Field directive: :<space_tag> <field_tag> [options...]
+    field_directive: $ => seq(
+      ':',
+      $.space_tag,
+      optional($.field_tag),
+      repeat($.field_option),
+      optional($.comment),
+    ),
+
+    field_option: $ => choice(
+      seq('offset', '=', $.numeric_literal),
+      seq('size', '=', $.numeric_literal),
+      seq('count', '=', $.numeric_literal),
+      seq('reset', '=', $.numeric_literal),
+      seq('name', '=', $.format_string),
+      seq('descr', '=', $.quoted_string),
+      seq('alias', '=', $.field_reference),
+      seq('subfields', '=', $.subfields_block),
+    ),
+
+    subfields_block: $ => seq(
+      '{',
+      repeat($.subfield_definition),
+      '}',
+    ),
+
+    subfield_definition: $ => seq(
+      $.subfield_tag,
+      optional(seq('?', $.postfix)),
+      $.bit_field,
+      repeat(choice(
+        seq('op', '=', $.operation_type),
+        seq('descr', '=', $.quoted_string),
+      )),
+      optional($.comment),
+    ),
+
+    // Instruction directive: :<space_tag> <instruction_tag> (fields...) [options...]
+    instruction_directive: $ => seq(
+      ':',
+      $.space_tag,
+      $.instruction_tag,
+      $.operand_list,
+      repeat($.instruction_option),
+      optional($.comment),
+    ),
+
+    operand_list: $ => seq(
+      '(',
+      optional(seq(
+        choice($.field_reference, $.bit_field),
+        repeat(seq(',', choice($.field_reference, $.bit_field))),
+      )),
+      ')',
+    ),
+
+    instruction_option: $ => choice(
+      seq('mask', '=', $.mask_block),
+      seq('descr', '=', $.quoted_string),
+      seq('semantics', '=', $.semantics_block),
+    ),
+
+    mask_block: $ => seq(
+      '{',
+      repeat($.mask_assignment),
+      '}',
+    ),
+
+    mask_assignment: $ => seq(
+      choice($.field_reference, $.bit_field),
+      '=',
+      $.numeric_literal,
+      optional($.comment),
+    ),
+
+    semantics_block: $ => seq(
+      '{',
+      repeat(choice(
+        /[^{}]+/,  // Simple catch-all for semantics content
+        $.semantics_block,
+      )),
+      '}',
+    ),
+
+    // Include/Attach directives for .coredef and .sysdef
+    include_directive: $ => seq(
+      ':include',
+      $.file_path,
+      optional($.comment),
+    ),
+
+    attach_directive: $ => seq(
+      ':attach',
+      $.identifier,
+      $.file_path,
+      optional($.comment),
+    ),
+
+    // Bit field specification: @(...)
+    bit_field: $ => seq(
+      '@',
+      '(',
+      $.bit_specification,
+      ')',
+    ),
+
+    bit_specification: $ => choice(
+      $.bit_range,
+      $.bit_index,
+      $.bit_concatenation,
+    ),
+
+    bit_range: $ => seq(
+      $.numeric_literal,
+      '-',
+      $.numeric_literal,
+    ),
+
+    bit_index: $ => $.numeric_literal,
+
+    bit_concatenation: $ => seq(
+      choice($.bit_range, $.bit_index, $.bit_literal, $.sign_extension),
+      repeat1(seq('|', choice($.bit_range, $.bit_index, $.bit_literal, $.sign_extension))),
+    ),
+
+    bit_literal: $ => /0b[01]+/,
+
+    sign_extension: $ => seq(
+      '?',
+      choice('0', '1'),
+    ),
+
+    // Operation types
+    operation_type: $ => choice(
+      'imm',
+      'ident',
+      'addr',
+      'source',
+      'target',
+      'func',
+      seq($.space_tag, optional(seq('.', $.field_tag))),
+      seq($.operation_type, '|', $.operation_type),
+    ),
+
+    // References
+    field_reference: $ => choice(
+      $.field_tag,
+      seq($.field_tag, '.', $.subfield_tag),
+    ),
+
+    // Literals and identifiers
+    numeric_literal: $ => choice(
+      /0x[0-9a-fA-F]+/,    // Hexadecimal
+      /0b[01]+/,           // Binary
+      /0o[0-7]+/,          // Octal
+      /\d+/,               // Decimal
+    ),
+
+    quoted_string: $ => seq(
+      '"',
+      repeat(choice(
+        /[^"\\]+/,
+        /\\./,
+      )),
+      '"',
+    ),
+
+    format_string: $ => /[a-zA-Z_][a-zA-Z0-9_%.-]*/,
+
+    file_path: $ => choice(
+      $.quoted_string,
+      /[a-zA-Z0-9_./\\-]+/,
+    ),
+
+    identifier: $ => /[a-zA-Z_][a-zA-Z0-9_.-]*/,
+    space_tag: $ => /[a-zA-Z_][a-zA-Z0-9_.-]*/,
+    field_tag: $ => /[a-zA-Z_][a-zA-Z0-9_.-]*/,
+    subfield_tag: $ => /[a-zA-Z_][a-zA-Z0-9_.-]*/,
+    instruction_tag: $ => /[a-zA-Z_][a-zA-Z0-9_.-]*/,
+    postfix: $ => /[a-zA-Z.]/,
+
+    comment: $ => /#[^\r\n]*/,
+    _newline: $ => /\r?\n/,
+  },
+
+  extras: $ => [
+    /\s/,
+  ],
+});

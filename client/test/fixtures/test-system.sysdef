@@ -1,0 +1,32 @@
+# Test system definition file
+:system name="TestSystem" version="1.0"
+
+# Attach core definitions
+:attach test-core.coredef as core0
+:attach test-core.coredef as core1
+
+# System-level memory spaces
+:space mem addr=32 word=8 type=memory size=0x10000000
+:space io addr=32 word=32 type=io size=0x1000
+
+# System-level bus definitions
+:bus system_bus width=64 endian=big
+
+# Memory mapped regions
+:mem rom addr=0x00000000 size=0x00100000 type=rom descr="Boot ROM"
+:mem ram addr=0x10000000 size=0x08000000 type=ram descr="System RAM"
+:mem mmio addr=0x20000000 size=0x00001000 type=io descr="Memory Mapped I/O"
+
+# System interconnect
+:connect core0.mem to system_bus
+:connect core1.mem to system_bus  
+:connect system_bus to mem
+:connect system_bus to io
+
+# System-level configuration
+:config {
+    reset_vector = 0x00000000
+    interrupt_vector = 0x00000100
+    cache_coherency = true
+    smp_support = true
+}

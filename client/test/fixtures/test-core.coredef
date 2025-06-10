@@ -1,0 +1,35 @@
+# Test core definition file
+:include test-enhanced.isa
+:include test-extension.isaext
+
+# Core-specific configurations
+:core name="TestCore" version="1.0"
+
+# Core-specific register implementations
+:reg MSR size=32 descr="Machine State Register" subfields={
+    PR @(14) descr="Problem State"
+    FP @(13) descr="Floating Point Available"
+    ME @(12) descr="Machine Check Enable"
+    FE0 @(11) descr="Floating Point Exception Mode 0"
+    SE @(10) descr="Single Step Trace Enable"
+    BE @(9) descr="Branch Trace Enable" 
+    FE1 @(8) descr="Floating Point Exception Mode 1"
+    IP @(6) descr="Interrupt Prefix"
+    IR @(5) descr="Instruction Relocate"
+    DR @(4) descr="Data Relocate"
+    RI @(1) descr="Recoverable Interrupt"
+    LE @(0) descr="Little Endian Mode"
+}
+
+# Core-specific instruction implementations
+:insn mfmsr (rD) mask={OP=0b011111 XO=0b001010011 rA=0 rB=0} semantics={
+    # Move from Machine State Register
+    rD = MSR
+}
+
+:insn mtmsr (rS) mask={OP=0b011111 XO=0b010010010 rA=0 rB=0} subfields={
+    rS @(6-10) op=reg.GPR descr="Source register"
+} semantics={
+    # Move to Machine State Register
+    MSR = rS
+}

@@ -1,0 +1,271 @@
+{
+  "name": "isa-language-support",
+  "displayName": "ISA Language Support",
+  "description": "Language support for ISA definition files (.isa, .isaext, .coredef, .sysdef)",
+  "version": "1.0.0",
+  "publisher": "isa-tools",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "isa",
+    "instruction-set-architecture",
+    "embedded",
+    "processor",
+    "language-server"
+  ],
+  "activationEvents": [
+    "onLanguage:isa",
+    "onLanguage:isaext",
+    "onLanguage:coredef",
+    "onLanguage:sysdef"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "isa",
+        "extensions": [
+          ".isa"
+        ],
+        "aliases": [
+          "ISA Definition",
+          "isa"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/isa-file.svg",
+          "dark": "./icons/isa-file.svg"
+        }
+      },
+      {
+        "id": "isaext",
+        "extensions": [
+          ".isaext"
+        ],
+        "aliases": [
+          "ISA Extension",
+          "isaext"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/extension-file.svg",
+          "dark": "./icons/extension-file.svg"
+        }
+      },
+      {
+        "id": "coredef",
+        "extensions": [
+          ".coredef"
+        ],
+        "aliases": [
+          "Core Definition",
+          "coredef"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/core-file.svg",
+          "dark": "./icons/core-file.svg"
+        }
+      },
+      {
+        "id": "sysdef",
+        "extensions": [
+          ".sysdef"
+        ],
+        "aliases": [
+          "System Definition",
+          "sysdef"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/system-file.svg",
+          "dark": "./icons/system-file.svg"
+        }
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "scopes": {
+          "directive": [
+            "keyword.control.directive.isa"
+          ],
+          "spaceDirective": [
+            "keyword.control.space.isa"
+          ],
+          "spaceTag": [
+            "entity.name.type.space.isa"
+          ],
+          "fieldTag": [
+            "entity.name.function.field.isa"
+          ],
+          "subfieldTag": [
+            "entity.name.variable.subfield.isa"
+          ],
+          "instructionTag": [
+            "entity.name.function.instruction.isa"
+          ],
+          "numericLiteral": [
+            "constant.numeric.isa"
+          ],
+          "bitField": [
+            "constant.other.bitfield.isa"
+          ],
+          "quotedString": [
+            "string.quoted.double.isa"
+          ],
+          "sourceOperand": [
+            "variable.parameter.source.isa"
+          ],
+          "targetOperand": [
+            "variable.parameter.target.isa"
+          ],
+          "funcField": [
+            "variable.parameter.function.isa"
+          ],
+          "immField": [
+            "variable.parameter.immediate.isa"
+          ],
+          "fieldReference": [
+            "variable.other.reference.isa"
+          ],
+          "undefinedReference": [
+            "invalid.illegal.reference.isa"
+          ],
+          "aliasReference": [
+            "variable.other.alias.isa"
+          ],
+          "contextBracket": [
+            "punctuation.definition.context.isa"
+          ],
+          "comment": [
+            "comment.line.hash.isa"
+          ]
+        }
+      }
+    ],
+    "themes": [
+      {
+        "label": "ISA Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/isa-semantic-dark.json"
+      },
+      {
+        "label": "ISA Light",
+        "uiTheme": "vs",
+        "path": "./themes/isa-semantic-light.json"
+      },
+      {
+        "label": "ISA High Contrast",
+        "uiTheme": "hc-black",
+        "path": "./themes/isa-semantic-hc.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "isa.validateProject",
+        "title": "Validate Project",
+        "category": "ISA"
+      },
+      {
+        "command": "isa.formatDocument",
+        "title": "Format Document",
+        "category": "ISA"
+      },
+      {
+        "command": "isa.refreshSemanticTokens",
+        "title": "Refresh Semantic Highlighting",
+        "category": "ISA"
+      },
+      {
+        "command": "isa.showColorAssignments",
+        "title": "Show Space Tag Colors",
+        "category": "ISA"
+      },
+      {
+        "command": "isa.debugParser",
+        "title": "Debug Parser",
+        "category": "ISA"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "ISA Language Configuration",
+      "properties": {
+        "isaLanguage.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the ISA language server executable. Leave empty to use bundled server."
+        },
+        "isaLanguage.validation.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time validation and diagnostics"
+        },
+        "isaLanguage.highlighting.useSemanticTokens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use semantic tokens for highlighting (recommended)"
+        },
+        "isaLanguage.colorScheme.autoAssign": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically assign unique colors to space tags"
+        },
+        "isaLanguage.diagnostics.maxProblems": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum number of problems to show per file"
+        },
+        "isaLanguage.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "verbose",
+          "description": "Trace level for language server communication"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && webpack --mode development",
+    "build:all": "tsc -b && tsc -p tsconfig.test.json && webpack --mode development",
+    "package": "webpack --mode production",
+    "prepack": "npm run build",
+    "test": "npm run build:all && vscode-test",
+    "test:watch": "npm run build:all && vscode-test --watch",
+    "test:debug": "npm run build:all && vscode-test --debug",
+    "test:help": "vscode-test --help",
+    "test:dry-run": "vscode-test --dry-run",
+    "lint": "eslint src --ext ts",
+    "lint:fix": "eslint src --ext ts --fix",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.15.30",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild-loader": "^4.2.2",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "mocha": "^11.6.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.1.0",
+    "webpack": "^5.95.0",
+    "webpack-cli": "^5.1.4"
+  }
+}
