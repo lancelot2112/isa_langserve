@@ -406,4 +406,27 @@ export class ISASymbolTable implements SymbolTable {
     
     return false;
   }
+
+  /**
+   * Find a subfield within a specific parent field
+   * Returns true if the subfield exists as a child of the specified parent field
+   */
+  findSubfieldInField(parentFieldName: string, subfieldName: string, spaceTag: string): boolean {
+    // Find the parent field symbol first
+    const parentField = this.findSymbol(parentFieldName, spaceTag);
+    
+    if (!parentField || parentField.type !== 'field') {
+      return false;
+    }
+
+    // Get the field definition from the symbol
+    const fieldDefinition = parentField.definition as any;
+    
+    if (!fieldDefinition || !fieldDefinition.subfields) {
+      return false;
+    }
+
+    // Check if the subfield exists in the parent field's subfields
+    return fieldDefinition.subfields.some((subfield: any) => subfield.tag === subfieldName);
+  }
 }

@@ -860,7 +860,7 @@ export class SemanticAnalyzer {
         
         // Check subfield reference if provided
         if (subfieldName && baseField) {
-          const subfieldExists = this.symbolTable.findSymbol(subfieldName, node.spaceTag);
+          const subfieldExists = this.symbolTable.findSubfieldInField(aliasName, subfieldName, node.spaceTag);
           if (!subfieldExists) {
             errors.push({
               message: `Undefined subfield '${subfieldName}' in field '${aliasName}'`,
