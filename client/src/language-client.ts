@@ -177,7 +177,7 @@ export class ISALanguageClient {
         enableSemanticTokens: config.get('highlighting.useSemanticTokens', true),
         autoAssignColors: config.get('colorScheme.autoAssign', true),
         maxProblems: config.get('diagnostics.maxProblems', 100),
-        validationEnabled: config.get('validation.enabled', true),
+        enableValidation: config.get('validation.enabled', true),
         enableHover: true,
         enableFolding: true,
         enableDocumentSymbols: true,
