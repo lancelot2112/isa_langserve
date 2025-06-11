@@ -12,7 +12,8 @@ import {
   InstructionNode,
   SpaceNode,
   Token,
-  TokenType
+  TokenType,
+  SourceLocation
 } from '../parser/types';
 import { ISASymbolTable } from './symbol-table';
 import { ISATokenizer } from '../parser/tokenizer';
@@ -143,14 +144,67 @@ export class SemanticAnalyzer {
           nodes.push(node);
         }
       } else {
+        // Parse the current line
         const node = this.parseLine(line, i, uri);
         if (node) {
+          // Check if this is a field/instruction definition that might be followed by subfields
+          if ((node.type === 'field' || node.type === 'instruction') && i + 1 < lines.length) {
+            const nextLineIndex = this.findNextNonEmptyLine(lines, i + 1);
+            if (nextLineIndex !== -1) {
+              const nextLine = lines[nextLineIndex]?.trim();
+              // Check if the next non-empty line starts with 'subfields={'
+              if (nextLine === 'subfields={' || (nextLine && nextLine.startsWith('subfields={') && !nextLine.includes('}'))) {
+                // Found standalone subfields block - collect it
+                let subfieldContent = nextLine;
+                let j = nextLineIndex + 1;
+                
+                // If the subfields line doesn't end with }, collect the multi-line block
+                if (!nextLine.includes('}')) {
+                  while (j < lines.length && !lines[j]?.includes('}')) {
+                    if (lines[j]?.trim()) {
+                      subfieldContent += ' ' + lines[j]?.trim();
+                    }
+                    j++;
+                  }
+                  if (j < lines.length && lines[j]?.includes('}')) {
+                    subfieldContent += ' ' + lines[j]?.trim();
+                  }
+                }
+                
+                // Parse the subfields and attach them to the node
+                if (node.type === 'field') {
+                  const fieldNode = node as FieldNode;
+                  fieldNode.subfields = this.parseSubfields(subfieldContent);
+                  // Update the text to include the subfields
+                  fieldNode.text = line + '\n' + subfieldContent;
+                } else if (node.type === 'instruction') {
+                  // For instructions, subfields are handled differently but similar logic applies
+                  const instructionNode = node as InstructionNode;
+                  instructionNode.text = line + '\n' + subfieldContent;
+                }
+                
+                // Skip the processed subfields lines
+                i = j;
+              }
+            }
+          }
+          
           nodes.push(node);
         }
       }
     }
     
     return nodes;
+  }
+  
+  private findNextNonEmptyLine(lines: string[], startIndex: number): number {
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i]?.trim();
+      if (line && !line.startsWith('#')) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   private parseLine(line: string, lineNumber: number, _uri: string): ParseNode | null {
@@ -537,14 +591,41 @@ export class SemanticAnalyzer {
         // Check if this field reference is valid in the current context
         // Skip very short tokens and common keywords to reduce false positives
         if (token.text.length >= 2 && !this.isCommonKeyword(token.text)) {
-          const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
-          if (!symbol && token.spaceTag && !this.isValidOperandReference(token.text, token.spaceTag)) {
-            errors.push({
-              message: `Undefined field reference: '${token.text}'`,
-              location: this.ensureValidRange(token.location),
-              severity: 'error',
-              code: 'undefined-field-reference',
-            });
+          // Handle field.subfield notation specially
+          if (token.text.includes('.')) {
+            const [fieldName, subfieldName] = token.text.split('.');
+            if (fieldName && subfieldName && token.spaceTag) {
+              const field = this.symbolTable.findSymbol(fieldName, token.spaceTag);
+              if (!field) {
+                errors.push({
+                  message: `Undefined field reference: '${fieldName}' in '${token.text}'`,
+                  location: this.ensureValidRange(token.location),
+                  severity: 'error',
+                  code: 'undefined-field-reference',
+                });
+              } else if (field.type === 'field') {
+                const subfieldExists = this.symbolTable.findSubfieldInField(fieldName, subfieldName, token.spaceTag);
+                if (!subfieldExists) {
+                  errors.push({
+                    message: `Undefined subfield '${subfieldName}' in field '${fieldName}'`,
+                    location: this.ensureValidRange(token.location),
+                    severity: 'error',
+                    code: 'undefined-subfield',
+                  });
+                }
+              }
+            }
+          } else {
+            // Handle regular field references
+            const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
+            if (!symbol && token.spaceTag && !this.isValidOperandReference(token.text, token.spaceTag)) {
+              errors.push({
+                message: `Undefined field reference: '${token.text}'`,
+                location: this.ensureValidRange(token.location),
+                severity: 'error',
+                code: 'undefined-field-reference',
+              });
+            }
           }
         }
       }
@@ -860,11 +941,13 @@ export class SemanticAnalyzer {
         
         // Check subfield reference if provided
         if (subfieldName && baseField) {
-          const subfieldExists = this.symbolTable.findSymbol(subfieldName, node.spaceTag);
+          const subfieldExists = this.symbolTable.findSubfieldInField(aliasName, subfieldName, node.spaceTag);
           if (!subfieldExists) {
+            // Calculate more precise location for the subfield part
+            const subfieldLocation = this.calculateSubfieldLocation(node, node.alias!);
             errors.push({
               message: `Undefined subfield '${subfieldName}' in field '${aliasName}'`,
-              location: this.ensureValidRange(node.location),
+              location: this.ensureValidRange(subfieldLocation || node.location),
               severity: 'error',
               code: 'undefined-subfield',
             });
@@ -976,6 +1059,20 @@ export class SemanticAnalyzer {
     // First check if it's a direct field/subfield reference
     if (this.symbolTable.hasSymbol(operand, spaceTag)) {
       return true;
+    }
+    
+    // Handle field.subfield notation (e.g., "spr22.lsb")
+    if (operand.includes('.')) {
+      const [fieldName, subfieldName] = operand.split('.');
+      if (fieldName && subfieldName) {
+        // Check if the field exists
+        const field = this.symbolTable.findSymbol(fieldName, spaceTag);
+        if (field && field.type === 'field') {
+          // Check if the subfield exists within this field
+          return this.symbolTable.findSubfieldInField(fieldName, subfieldName, spaceTag);
+        }
+      }
+      return false;
     }
     
     // Check if it's a subfield of any field in the same space
@@ -1179,5 +1276,47 @@ export class SemanticAnalyzer {
       
       return enhanced;
     });
+  }
+
+  /**
+   * Calculate the precise location of a subfield within an alias value
+   * Returns the location that points to just the subfield part (e.g., ".lsb" in "spr22.lsb")
+   */
+  private calculateSubfieldLocation(node: FieldNode, aliasValue: string): SourceLocation | null {
+    if (!node.text || !aliasValue.includes('.')) {
+      return null;
+    }
+
+    // Find the "alias=" text in the node's text
+    const aliasStart = node.text.indexOf('alias=');
+    if (aliasStart === -1) {
+      return null;
+    }
+
+    // Find the start of the alias value
+    const aliasValueStart = aliasStart + 'alias='.length;
+    
+    // Find the dot that separates field from subfield
+    const dotIndex = aliasValue.indexOf('.');
+    if (dotIndex === -1) {
+      return null;
+    }
+
+    // Calculate the character positions for the subfield part (including the dot)
+    const subfieldStartInAlias = dotIndex; // Start at the dot
+    const subfieldEndInAlias = aliasValue.length; // End at the end of alias value
+    
+    // Calculate absolute positions within the line
+    const subfieldStartChar = node.location.start.character + aliasValueStart + subfieldStartInAlias;
+    const subfieldEndChar = node.location.start.character + aliasValueStart + subfieldEndInAlias;
+
+    return {
+      start: { line: node.location.start.line, character: subfieldStartChar },
+      end: { line: node.location.start.line, character: subfieldEndChar },
+      range: {
+        start: { line: node.location.start.line, character: subfieldStartChar },
+        end: { line: node.location.start.line, character: subfieldEndChar }
+      }
+    };
   }
 }
