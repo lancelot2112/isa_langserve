@@ -108,7 +108,13 @@ export class ISATokenizer {
       return;
     }
     
-    // Indirection arrow (->)
+    // Context operator (;)
+    if (char === ';') {
+      this.tokenizeContextOperator();
+      return;
+    }
+    
+    // Indirection arrow (->) - deprecated, replaced by context operator
     if (char === '-' && this.peekChar() === '>') {
       this.tokenizeIndirectionArrow();
       return;
@@ -246,7 +252,11 @@ export class ISATokenizer {
     
     if (bracket === '{') {
       this.nestingLevel++;
-      this.inSubfields = true;
+      // Only set inSubfields if we're actually in a subfields context
+      const recentContent = this.content.slice(Math.max(0, this.position - 100), this.position);
+      if (recentContent.includes('subfields=')) {
+        this.inSubfields = true;
+      }
     } else if (bracket === '}') {
       this.nestingLevel--;
       if (this.nestingLevel === 0) {
@@ -273,9 +283,10 @@ export class ISATokenizer {
     const startPos = this.position;
     this.advance(); // skip '$'
     
-    // Read the space tag following the $, but stop at '-' for -> operator
+    // Read the space tag following the $, but stop at ';' for context operator or '-' for deprecated -> operator
     while (this.position < this.content.length && 
            this.content[this.position] && 
+           this.content[this.position] !== ';' &&
            this.content[this.position] !== '-' &&
            this.isIdentifierChar(this.content[this.position]!)) {
       this.advance();
@@ -292,6 +303,14 @@ export class ISATokenizer {
       // Just advance past the $ if no identifier follows
       // This will be treated as a regular character
     }
+  }
+
+  private tokenizeContextOperator(): void {
+    const start = this.getCurrentPosition();
+    this.advance(); // skip ';'
+    
+    const location = this.createLocation(start, this.getCurrentPosition());
+    this.addToken(TokenType.CONTEXT_OPERATOR, ';', location);
   }
 
   private tokenizeIndirectionArrow(): void {
@@ -397,11 +416,6 @@ export class ISATokenizer {
   }
 
   private determineIdentifierTokenType(text: string): TokenType {
-    // In subfields context, this is likely a subfield tag
-    if (this.inSubfields) {
-      return TokenType.SUBFIELD_TAG;
-    }
-    
     // Check context from recent content to determine type
     const recentContent = this.content.slice(Math.max(0, this.position - 100), this.position);
     
@@ -425,6 +439,11 @@ export class ISATokenizer {
     
     if (inOperandList || inMaskContext) {
       return TokenType.FIELD_REFERENCE;
+    }
+    
+    // In subfields context, this is likely a subfield tag
+    if (this.inSubfields) {
+      return TokenType.SUBFIELD_TAG;
     }
     
     // If we're after a space directive and this isn't the first identifier, it's likely a field reference

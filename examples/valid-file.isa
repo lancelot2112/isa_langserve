@@ -29,9 +29,9 @@ subfields={
 # Fields in an unnamed field block with a multi-line subfield
 :insn size=32 subfields={
     OP @(0-5)
-    rA @(11-15) op=reg.GPR
-    rB @(16-20) op=reg.GPR
-    rD @(6-10) op=reg.GPR
+    rA @(11-15) op=reg;GPR
+    rB @(16-20) op=reg;GPR
+    rD @(6-10) op=reg;GPR
 
     #example of a single character tag
     OE?o @(21) op=func

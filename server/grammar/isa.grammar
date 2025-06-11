@@ -214,14 +214,17 @@ module.exports = grammar({
       'source',
       'target',
       'func',
-      seq($.space_tag, optional(seq('.', $.field_tag))),
+      seq($.space_tag, optional(seq(';', $.field_tag))),
       seq($.operation_type, '|', $.operation_type),
     ),
 
     // References
     field_reference: $ => choice(
       $.field_tag,
-      seq($.field_tag, '.', $.subfield_tag),
+      seq($.field_tag, ';', $.subfield_tag),  // Context operator syntax
+      seq('$', $.space_tag, ';', $.field_tag), // Space indirection with context operator
+      seq('$', $.space_tag, ';', $.field_tag, ';', $.subfield_tag), // Full context chain
+      seq('$', $.space_tag, '->', $.field_tag), // Legacy space indirection (still supported for bus mappings)
     ),
 
     // Literals and identifiers

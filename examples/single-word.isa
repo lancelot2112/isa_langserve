@@ -13,8 +13,8 @@
     abc/-() @(5)
 }
 
-#Alias of the weirdly named `Te-S_T.`.`F` above
+#Alias of the weirdly named `Te-S_T.`;`F` above
 # Colored `Te-S_T.` same as `reg` and valid
-# White `.` since it's an operator
+# Highlighted `;` since it's the context operator
 # Colored `F` since it's a valid subfield of `Te-S_T.`
-:reg FIELD alias=Te-S_T..F
+:reg FIELD alias=Te-S_T.;F
