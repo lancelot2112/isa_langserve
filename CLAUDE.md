@@ -36,3 +36,9 @@ Contains a specification for a declarative technical language to describe Instru
 - `.\examples` Example files of the target language
 - `.\server` Language server implementing the Language Server Protocol (JSON RPC 2.0)
 - `.\client` Client that talks to the language server via (JSON RPC2.0) and mediates vscode and the language server. Use `.\server\CLIENT-GUIDE.md` to understand the server implementation details.
+
+## Repositories
+- Repository name is isa_langserve
+
+## Memory
+- main branch is called `master`
