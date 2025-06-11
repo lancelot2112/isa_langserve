@@ -425,11 +425,11 @@ export class SemanticAnalyzer {
       const trimmed = line.trim();
       if (!trimmed) continue;
       
-      // Parse subfield: name @(bits) [options]
-      const subfieldMatch = trimmed.match(/^(\w+)\s+@\(([^)]+)\)(.*)$/);
+      // Parse subfield: name[?postfix] @(bits) [options]
+      const subfieldMatch = trimmed.match(/^(\w+)(\?\w+)?\s+@\(([^)]+)\)(.*)$/);
       if (subfieldMatch) {
-        const [, tag, bitField] = subfieldMatch;
-        if (tag && bitField) {
+        const [, baseTag, postfix, bitField] = subfieldMatch;
+        if (baseTag && bitField) {
           const location = this.ensureValidRange({
             start: { line: 0, character: 0 },
             end: { line: 0, character: 1 },
@@ -439,7 +439,8 @@ export class SemanticAnalyzer {
             },
           });
           subfields.push({
-            tag,
+            tag: baseTag, // Use base name without postfix for symbol resolution
+            postfix: postfix || undefined, // Store postfix separately if present
             bitField: {
               text: `@(${bitField})`,
               location
@@ -1269,9 +1270,11 @@ export class SemanticAnalyzer {
       if (operand.startsWith('$')) continue;
       
       if (!operand.startsWith('@') && !this.isValidOperandReference(operand, node.spaceTag)) {
+        // Calculate precise location of the operand within the instruction line
+        const operandLocation = this.calculateOperandLocation(node, operand);
         errors.push({
           message: `Undefined field reference: ${operand}`,
-          location: this.ensureValidRange(node.location),
+          location: this.ensureValidRange(operandLocation || node.location),
           severity: 'error',
           code: 'undefined-field-reference',
         });
@@ -1442,6 +1445,75 @@ export class SemanticAnalyzer {
       
       return enhanced;
     });
+  }
+
+  /**
+   * Calculate the precise location of an operand within an instruction line
+   * Returns the location that points to just the operand (e.g., "not_def" in ":other invinsn (not_def,AA)")
+   */
+  private calculateOperandLocation(node: InstructionNode, operand: string): SourceLocation | null {
+    if (!node.text || !operand) {
+      return null;
+    }
+
+    // Find the parentheses that contain the operands
+    const parenStart = node.text.indexOf('(');
+    if (parenStart === -1) {
+      return null;
+    }
+
+    // Extract the content within parentheses
+    const parenEnd = node.text.indexOf(')', parenStart);
+    if (parenEnd === -1) {
+      return null;
+    }
+
+    const operandsText = node.text.substring(parenStart + 1, parenEnd);
+    
+    // Split operands and find the index of our target operand
+    const operands = operandsText.split(',').map(op => op.trim());
+    const operandIndex = operands.findIndex(op => op === operand);
+    
+    if (operandIndex === -1) {
+      return null;
+    }
+
+    // Calculate the position by finding where this operand starts within the operands text
+    let currentPos = 0;
+    for (let i = 0; i < operandIndex; i++) {
+      const prevOperand = operands[i];
+      if (prevOperand) {
+        // Find the actual position of this operand (accounting for whitespace)
+        const operandPos = operandsText.indexOf(prevOperand, currentPos);
+        if (operandPos !== -1) {
+          currentPos = operandPos + prevOperand.length;
+          // Skip past the comma and any whitespace
+          const commaPos = operandsText.indexOf(',', currentPos);
+          if (commaPos !== -1) {
+            currentPos = commaPos + 1;
+          }
+        }
+      }
+    }
+
+    // Find the actual start position of our target operand
+    const operandStartInOperands = operandsText.indexOf(operand, currentPos);
+    if (operandStartInOperands === -1) {
+      return null;
+    }
+
+    // Calculate absolute positions within the line
+    const operandStartChar = node.location.start.character + parenStart + 1 + operandStartInOperands;
+    const operandEndChar = operandStartChar + operand.length;
+
+    return {
+      start: { line: node.location.start.line, character: operandStartChar },
+      end: { line: node.location.start.line, character: operandEndChar },
+      range: {
+        start: { line: node.location.start.line, character: operandStartChar },
+        end: { line: node.location.start.line, character: operandEndChar }
+      }
+    };
   }
 
   /**
