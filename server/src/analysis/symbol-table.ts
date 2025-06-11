@@ -420,13 +420,17 @@ export class ISASymbolTable implements SymbolTable {
     }
 
     // Get the field definition from the symbol
-    const fieldDefinition = parentField.definition as any;
+    interface FieldDefinition {
+      subfields: { tag: string }[];
+    }
+
+    const fieldDefinition = parentField.definition as FieldDefinition;
     
     if (!fieldDefinition || !fieldDefinition.subfields) {
       return false;
     }
 
     // Check if the subfield exists in the parent field's subfields
-    return fieldDefinition.subfields.some((subfield: any) => subfield.tag === subfieldName);
+    return fieldDefinition.subfields.some((subfield) => subfield.tag === subfieldName);
   }
 }
