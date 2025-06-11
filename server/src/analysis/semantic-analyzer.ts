@@ -1389,7 +1389,7 @@ export class SemanticAnalyzer {
 
   private enhanceTokens(tokens: Token[], _uri: string): Token[] {
     // Enhance tokens with semantic information from symbol table
-    return tokens.map(token => {
+    return tokens.map((token, index) => {
       const enhanced = { ...token };
       
       // Add space tag coloring
@@ -1398,10 +1398,43 @@ export class SemanticAnalyzer {
         enhanced.spaceTag = spaceName;
       }
       
-      // Mark undefined references
+      // Ensure space indirection tokens have proper space tag for coloring
+      if (token.type === TokenType.SPACE_INDIRECTION && !enhanced.spaceTag) {
+        const spaceName = token.text.replace('$', '');
+        enhanced.spaceTag = spaceName;
+      }
+      
+      // Handle context chains: $space;field;subfield
       if (token.type === TokenType.FIELD_REFERENCE) {
+        let contextSpaceTag = token.spaceTag;
+        
+        // Check if this field reference is part of a space indirection context chain
+        if (index >= 2 && 
+            tokens[index - 1]?.type === TokenType.CONTEXT_OPERATOR &&
+            tokens[index - 2]?.type === TokenType.SPACE_INDIRECTION) {
+          // Use the space tag from the space indirection token
+          const spaceIndirectionToken = tokens[index - 2];
+          if (spaceIndirectionToken && spaceIndirectionToken.spaceTag) {
+            contextSpaceTag = spaceIndirectionToken.spaceTag;
+            enhanced.spaceTag = contextSpaceTag;
+          }
+        }
+        // Check if this is the second field reference in $space;field;subfield
+        else if (index >= 4 &&
+                 tokens[index - 1]?.type === TokenType.CONTEXT_OPERATOR &&
+                 tokens[index - 2]?.type === TokenType.FIELD_REFERENCE &&
+                 tokens[index - 3]?.type === TokenType.CONTEXT_OPERATOR &&
+                 tokens[index - 4]?.type === TokenType.SPACE_INDIRECTION) {
+          // Use the space tag from the space indirection token
+          const spaceIndirectionToken = tokens[index - 4];
+          if (spaceIndirectionToken && spaceIndirectionToken.spaceTag) {
+            contextSpaceTag = spaceIndirectionToken.spaceTag;
+            enhanced.spaceTag = contextSpaceTag;
+          }
+        }
+        
         // Only check current space tag - cross-space references require explicit $space; prefix
-        const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
+        const symbol = this.symbolTable.findSymbol(token.text, contextSpaceTag);
         if (!symbol) {
           enhanced.type = TokenType.UNDEFINED_REFERENCE;
         }
