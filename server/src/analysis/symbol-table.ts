@@ -419,12 +419,8 @@ export class ISASymbolTable implements SymbolTable {
       return false;
     }
 
-    // Get the field definition from the symbol
-    interface FieldDefinition {
-      subfields: { tag: string }[];
-    }
-
-    const fieldDefinition = parentField.definition as FieldDefinition;
+    // Get the field definition from the symbol - ensure it's a FieldNode
+    const fieldDefinition = parentField.definition as FieldNode;
     
     if (!fieldDefinition || !fieldDefinition.subfields) {
       return false;
