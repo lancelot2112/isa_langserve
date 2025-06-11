@@ -52,10 +52,7 @@ describe('Space Indirection Tokenization', () => {
     expect(spaceIndirectionToken?.text).toBe('$reg');
     expect(spaceIndirectionToken?.spaceTag).toBe('reg');
 
-    // Check for indirection arrow token
-    const arrowToken = significantTokens.find(t => t.type === TokenType.INDIRECTION_ARROW);
-    expect(arrowToken).toBeDefined();
-    expect(arrowToken?.text).toBe('->');
+    // Arrow operator is no longer supported
   });
 
   test('tokenizes field reference with context operator', () => {
@@ -107,8 +104,8 @@ describe('Space Indirection Tokenization', () => {
     expect(contextOperatorTokens[0]?.text).toBe(';');
   });
 
-  test('handles complex mask with legacy space indirection', () => {
-    const content = 'mask={opcd5=0b111 @(31)=1 $reg->spr22.lsb=1}';
+  test('handles complex mask with context operator space indirection', () => {
+    const content = 'mask={opcd5=0b111 @(31)=1 $reg;spr22;lsb=1}';
     const tokenizer = new ISATokenizer(content, defaultOptions);
     const tokens = tokenizer.tokenize();
 
@@ -117,10 +114,9 @@ describe('Space Indirection Tokenization', () => {
     expect(spaceIndirectionToken).toBeDefined();
     expect(spaceIndirectionToken?.text).toBe('$reg');
 
-    // Should find indirection arrow
-    const arrowToken = tokens.find(t => t.type === TokenType.INDIRECTION_ARROW);
-    expect(arrowToken).toBeDefined();
-    expect(arrowToken?.text).toBe('->');
+    // Should find context operators
+    const contextTokens = tokens.filter(t => t.type === TokenType.CONTEXT_OPERATOR);
+    expect(contextTokens.length).toBe(2); // Two semicolons in $reg;spr22;lsb
   });
 
   test('handles space indirection with incomplete context', () => {
@@ -137,8 +133,8 @@ describe('Space Indirection Tokenization', () => {
     expect(contextOperatorToken?.text).toBe(';');
   });
 
-  test('handles legacy space indirection without field path', () => {
-    const content = '$reg->';
+  test('handles space indirection without field path', () => {
+    const content = '$reg;';
     const tokenizer = new ISATokenizer(content, defaultOptions);
     const tokens = tokenizer.tokenize();
 
@@ -146,13 +142,14 @@ describe('Space Indirection Tokenization', () => {
     expect(spaceIndirectionToken).toBeDefined();
     expect(spaceIndirectionToken?.text).toBe('$reg');
 
-    const arrowToken = tokens.find(t => t.type === TokenType.INDIRECTION_ARROW);
-    expect(arrowToken).toBeDefined();
-    expect(arrowToken?.text).toBe('->');
+    // Should find context operator
+    const contextToken = tokens.find(t => t.type === TokenType.CONTEXT_OPERATOR);
+    expect(contextToken).toBeDefined();
+    expect(contextToken?.text).toBe(';');
   });
 
   test('does not tokenize $ without following identifier as space indirection', () => {
-    const content = '$ ->test';
+    const content = '$ ;test';
     const tokenizer = new ISATokenizer(content, defaultOptions);
     const tokens = tokenizer.tokenize();
 

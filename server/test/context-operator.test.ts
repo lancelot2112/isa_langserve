@@ -161,12 +161,12 @@ subfields={
     lsb @(32-63)
 }
 
-:insn move_insn (spr22;lsb, dest)`;
+:insn move_insn ($reg;spr22;lsb, dest)`;
 
       const document = TextDocument.create('test://context-operand.isa', 'isa', 1, content);
       const result = analyzer.analyzeFile(document);
 
-      // Should not have errors for valid operand context reference
+      // Should not have errors for valid space-redirected context reference
       const undefinedErrors = result.errors.filter(e => 
         e.code === 'undefined-field-reference' && e.message.includes('spr22')
       );
@@ -196,7 +196,7 @@ subfields={
       expect(syntaxErrors.length).toBeGreaterThan(0);
     });
 
-    test('still supports legacy arrow syntax for bus mappings', () => {
+    test('rejects legacy arrow syntax completely', () => {
       const content = `:space reg addr=32 word=64 type=register
 :space insn addr=32 word=32 type=rw
 
@@ -208,14 +208,14 @@ subfields={
 
 :insn legacy_insn () mask={$reg->spr22=1}`;
 
-      const document = TextDocument.create('test://legacy-arrow-supported.isa', 'isa', 1, content);
+      const document = TextDocument.create('test://legacy-arrow-rejected.isa', 'isa', 1, content);
       const result = analyzer.analyzeFile(document);
 
-      // Should not have undefined reference errors (arrow operator still supported for basic space indirection)
+      // Should have undefined reference errors (arrow operator no longer supported)
       const undefinedErrors = result.errors.filter(e => 
         e.code === 'undefined-field-reference' && e.message.includes('spr22')
       );
-      expect(undefinedErrors.length).toBe(0);
+      expect(undefinedErrors.length).toBeGreaterThan(0);
     });
   });
 

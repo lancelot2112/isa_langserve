@@ -1068,16 +1068,11 @@ export class SemanticAnalyzer {
   }
   
   private isValidOperandReference(operand: string, spaceTag: string): boolean {
-    // First check if it's a direct field/subfield reference
-    if (this.symbolTable.hasSymbol(operand, spaceTag)) {
-      return true;
-    }
-    
     // Handle field;subfield context notation (e.g., "spr22;lsb")
     if (operand.includes(';')) {
       const [fieldName, subfieldName] = operand.split(';');
       if (fieldName && subfieldName) {
-        // Check if the field exists
+        // Only check current space unless explicitly redirected with $space;
         const field = this.symbolTable.findSymbol(fieldName, spaceTag);
         if (field && field.type === 'field') {
           // Check if the subfield exists within this field
@@ -1096,7 +1091,12 @@ export class SemanticAnalyzer {
       }
     }
     
-    // Check if it's a subfield of any field in the same space
+    // Check if it's a direct field/subfield reference in the current space only
+    if (this.symbolTable.hasSymbol(operand, spaceTag)) {
+      return true;
+    }
+    
+    // Check if it's a subfield of any field in the current space only
     const fieldsInSpace = this.symbolTable.getSymbolsInScope(spaceTag);
     for (const field of fieldsInSpace) {
       if (field.definition && field.type === 'field') {
@@ -1108,11 +1108,6 @@ export class SemanticAnalyzer {
           }
         }
       }
-    }
-    
-    // Check for subfield symbols directly
-    if (this.symbolTable.hasSymbol(operand, spaceTag)) {
-      return true;
     }
     
     return false;
@@ -1270,6 +1265,9 @@ export class SemanticAnalyzer {
       // Skip empty operands (from empty parentheses)
       if (!operand || operand.trim() === '') continue;
       
+      // Skip space indirection operands (they are validated separately by validateContextReferences)
+      if (operand.startsWith('$')) continue;
+      
       if (!operand.startsWith('@') && !this.isValidOperandReference(operand, node.spaceTag)) {
         errors.push({
           message: `Undefined field reference: ${operand}`,
@@ -1402,6 +1400,7 @@ export class SemanticAnalyzer {
       
       // Mark undefined references
       if (token.type === TokenType.FIELD_REFERENCE) {
+        // Only check current space tag - cross-space references require explicit $space; prefix
         const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
         if (!symbol) {
           enhanced.type = TokenType.UNDEFINED_REFERENCE;

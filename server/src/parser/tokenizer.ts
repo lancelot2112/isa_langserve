@@ -114,11 +114,7 @@ export class ISATokenizer {
       return;
     }
     
-    // Indirection arrow (->) - deprecated, replaced by context operator
-    if (char === '-' && this.peekChar() === '>') {
-      this.tokenizeIndirectionArrow();
-      return;
-    }
+    // Arrow operator (->) is no longer supported - breaking change
     
     // Numeric literals or identifiers
     if (char && (this.isAlphaNumeric(char) || char === '0')) {
@@ -283,11 +279,10 @@ export class ISATokenizer {
     const startPos = this.position;
     this.advance(); // skip '$'
     
-    // Read the space tag following the $, but stop at ';' for context operator or '-' for deprecated -> operator
+    // Read the space tag following the $, but stop at ';' for context operator
     while (this.position < this.content.length && 
            this.content[this.position] && 
            this.content[this.position] !== ';' &&
-           this.content[this.position] !== '-' &&
            this.isIdentifierChar(this.content[this.position]!)) {
       this.advance();
     }
@@ -313,14 +308,6 @@ export class ISATokenizer {
     this.addToken(TokenType.CONTEXT_OPERATOR, ';', location);
   }
 
-  private tokenizeIndirectionArrow(): void {
-    const start = this.getCurrentPosition();
-    this.advance(); // skip '-'
-    this.advance(); // skip '>'
-    
-    const location = this.createLocation(start, this.getCurrentPosition());
-    this.addToken(TokenType.INDIRECTION_ARROW, '->', location);
-  }
 
   private tokenizeAlphaNumeric(): void {
     const start = this.getCurrentPosition();
@@ -516,12 +503,6 @@ export class ISATokenizer {
     }
   }
 
-  private peekChar(): string | undefined {
-    if (this.position + 1 < this.content.length) {
-      return this.content[this.position + 1];
-    }
-    return undefined;
-  }
 
   private getCurrentPosition(): Position {
     return Position.create(this.line, this.character);
