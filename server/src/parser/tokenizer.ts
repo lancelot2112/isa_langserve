@@ -328,11 +328,33 @@ export class ISATokenizer {
     const savedLine = this.line;
     const savedChar = this.character;
     
-    // Try to parse as numeric literal
+    // Try to parse as numeric literal - first get basic numeric characters
     let text = '';
     while (this.position < this.content.length && this.content[this.position] && this.isNumericChar(this.content[this.position]!)) {
       text += this.content[this.position]!;
       this.advance();
+    }
+    
+    // For hex literals (0x...), include any additional letters that might be invalid hex digits
+    if (text.startsWith('0x') || text.startsWith('0X')) {
+      while (this.position < this.content.length && this.content[this.position] && /[a-zA-Z0-9]/.test(this.content[this.position]!)) {
+        text += this.content[this.position]!;
+        this.advance();
+      }
+    }
+    // For binary literals (0b...), include any additional digits that might be invalid
+    else if (text.startsWith('0b') || text.startsWith('0B')) {
+      while (this.position < this.content.length && this.content[this.position] && /[0-9a-zA-Z]/.test(this.content[this.position]!)) {
+        text += this.content[this.position]!;
+        this.advance();
+      }
+    }
+    // For octal literals (0o...), include any additional digits that might be invalid
+    else if (text.startsWith('0o') || text.startsWith('0O')) {
+      while (this.position < this.content.length && this.content[this.position] && /[0-9a-zA-Z]/.test(this.content[this.position]!)) {
+        text += this.content[this.position]!;
+        this.advance();
+      }
     }
     
     // Check if this looks like a numeric literal (starts with 0x, 0b, 0o, or digits)

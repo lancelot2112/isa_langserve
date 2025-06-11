@@ -591,14 +591,41 @@ export class SemanticAnalyzer {
         // Check if this field reference is valid in the current context
         // Skip very short tokens and common keywords to reduce false positives
         if (token.text.length >= 2 && !this.isCommonKeyword(token.text)) {
-          const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
-          if (!symbol && token.spaceTag && !this.isValidOperandReference(token.text, token.spaceTag)) {
-            errors.push({
-              message: `Undefined field reference: '${token.text}'`,
-              location: this.ensureValidRange(token.location),
-              severity: 'error',
-              code: 'undefined-field-reference',
-            });
+          // Handle field.subfield notation specially
+          if (token.text.includes('.')) {
+            const [fieldName, subfieldName] = token.text.split('.');
+            if (fieldName && subfieldName && token.spaceTag) {
+              const field = this.symbolTable.findSymbol(fieldName, token.spaceTag);
+              if (!field) {
+                errors.push({
+                  message: `Undefined field reference: '${fieldName}' in '${token.text}'`,
+                  location: this.ensureValidRange(token.location),
+                  severity: 'error',
+                  code: 'undefined-field-reference',
+                });
+              } else if (field.type === 'field') {
+                const subfieldExists = this.symbolTable.findSubfieldInField(fieldName, subfieldName, token.spaceTag);
+                if (!subfieldExists) {
+                  errors.push({
+                    message: `Undefined subfield '${subfieldName}' in field '${fieldName}'`,
+                    location: this.ensureValidRange(token.location),
+                    severity: 'error',
+                    code: 'undefined-subfield',
+                  });
+                }
+              }
+            }
+          } else {
+            // Handle regular field references
+            const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
+            if (!symbol && token.spaceTag && !this.isValidOperandReference(token.text, token.spaceTag)) {
+              errors.push({
+                message: `Undefined field reference: '${token.text}'`,
+                location: this.ensureValidRange(token.location),
+                severity: 'error',
+                code: 'undefined-field-reference',
+              });
+            }
           }
         }
       }
@@ -1032,6 +1059,20 @@ export class SemanticAnalyzer {
     // First check if it's a direct field/subfield reference
     if (this.symbolTable.hasSymbol(operand, spaceTag)) {
       return true;
+    }
+    
+    // Handle field.subfield notation (e.g., "spr22.lsb")
+    if (operand.includes('.')) {
+      const [fieldName, subfieldName] = operand.split('.');
+      if (fieldName && subfieldName) {
+        // Check if the field exists
+        const field = this.symbolTable.findSymbol(fieldName, spaceTag);
+        if (field && field.type === 'field') {
+          // Check if the subfield exists within this field
+          return this.symbolTable.findSubfieldInField(fieldName, subfieldName, spaceTag);
+        }
+      }
+      return false;
     }
     
     // Check if it's a subfield of any field in the same space
