@@ -13,23 +13,23 @@ subfields={
 }
 
 #VALID CASES
-# can alias the named spr9 (from spr%d)
+# can redirect the named spr9 (from spr%d)
 # symbol reference `spr9` should be colored the same as `spr%d` and `reg`
-:reg CTR alias=spr9
+:reg CTR redirect=spr9
 
-# can alias a subfield of spr22 (from spr%d)
+# can redirect a subfield of spr22 (from spr%d)
 # symbol references spr22 and lsb should have the same coloring as `spr%d` and `reg`
 # the semicolon inside spr22;lsb should be highlighted as context operator
-:reg DEC alias=spr22;lsb
+:reg DEC redirect=spr22;lsb
 
 # ERROR CASES
 # Should indicate field name is not available (only 1024 count which maxes at spr1023)
 # Only spr1024 should be underlined and it shouldn't have a color
-:reg NAME_NOT_DEFINED alias=spr1024
+:reg NAME_NOT_DEFINED redirect=spr1024
 
 # Should indicate subfield not available
 # Only ;NDF should be underlined and it shouldn't be colored (spr22 should still be colored)
-:reg SUBFIELD_NOT_DEFINED alias=spr22;NDF
+:reg SUBFIELD_NOT_DEFINED redirect=spr22;NDF
 
 :other size=16 subfields={
     AA @(15) descr="Addressing mode (0=Relative, 1=Absolute)"

@@ -366,8 +366,8 @@ export class SemanticAnalyzer {
       
       // Parse field options from rest of line
       const options = this.parseFieldOptions(rest);
-      if (options.alias) {
-        fieldNode.alias = options.alias;
+      if (options.redirect) {
+        fieldNode.alias = options.redirect;
       }
       if (options.count !== undefined) {
         fieldNode.count = options.count;
@@ -386,7 +386,7 @@ export class SemanticAnalyzer {
   }
   
   private parseFieldOptions(optionsStr: string): {
-    alias?: string;
+    redirect?: string;
     count?: number;
     name?: string;
     [key: string]: any;
@@ -867,7 +867,7 @@ export class SemanticAnalyzer {
   }
 
   private isInvalidFieldOption(text: string): boolean {
-    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'alias'];
+    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'redirect'];
     return !validFieldOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 
@@ -904,14 +904,14 @@ export class SemanticAnalyzer {
       });
     }
     
-    // Validate alias references
+    // Validate redirect references
     if (node.alias) {
       // Breaking change: only support context operator (;) syntax
       if (node.alias.includes('.') && !node.alias.includes(';')) {
         const [fieldName, subfieldName] = node.alias.split('.');
         if (fieldName && subfieldName) {
           errors.push({
-            message: `Invalid alias syntax: '${node.alias}'. Use context operator syntax: '${fieldName};${subfieldName}'`,
+            message: `Invalid redirect syntax: '${node.alias}'. Use context operator syntax: '${fieldName};${subfieldName}'`,
             location: this.ensureValidRange(node.location),
             severity: 'error',
             code: 'invalid-syntax',
@@ -920,22 +920,22 @@ export class SemanticAnalyzer {
         }
       }
       
-      const aliasParts = node.alias.split(';');
-      const aliasName = aliasParts[0];
-      const subfieldName = aliasParts[1];
+      const redirectParts = node.alias.split(';');
+      const redirectName = redirectParts[0];
+      const subfieldName = redirectParts[1];
       
-      if (aliasName) {
+      if (redirectName) {
         // Check if base field exists
-        const baseField = this.symbolTable.findSymbol(aliasName, node.spaceTag);
+        const baseField = this.symbolTable.findSymbol(redirectName, node.spaceTag);
         if (!baseField) {
           // Check for array field references like spr1024 when max is spr1023
-          if (this.isArrayFieldReference(aliasName, node.spaceTag)) {
-            const fieldArrayInfo = this.getFieldArrayInfo(aliasName, node.spaceTag);
+          if (this.isArrayFieldReference(redirectName, node.spaceTag)) {
+            const fieldArrayInfo = this.getFieldArrayInfo(redirectName, node.spaceTag);
             if (fieldArrayInfo) {
-              const index = this.extractArrayIndex(aliasName, fieldArrayInfo.baseName);
+              const index = this.extractArrayIndex(redirectName, fieldArrayInfo.baseName);
               if (index !== null && index >= fieldArrayInfo.count) {
                 errors.push({
-                  message: `Undefined field reference: '${aliasName}'. Array '${fieldArrayInfo.baseName}' has count=${fieldArrayInfo.count}, valid range is ${fieldArrayInfo.baseName}0 to ${fieldArrayInfo.baseName}${fieldArrayInfo.count - 1}`,
+                  message: `Undefined field reference: '${redirectName}'. Array '${fieldArrayInfo.baseName}' has count=${fieldArrayInfo.count}, valid range is ${fieldArrayInfo.baseName}0 to ${fieldArrayInfo.baseName}${fieldArrayInfo.count - 1}`,
                   location: this.ensureValidRange(node.location),
                   severity: 'error',
                   code: 'undefined-field-reference',
@@ -944,22 +944,22 @@ export class SemanticAnalyzer {
             }
           } else {
             errors.push({
-              message: `Undefined field in alias: ${aliasName}`,
+              message: `Undefined field in redirect: ${redirectName}`,
               location: this.ensureValidRange(node.location),
               severity: 'error',
-              code: 'undefined-alias',
+              code: 'undefined-redirect',
             });
           }
         }
         
         // Check subfield reference if provided
         if (subfieldName && baseField) {
-          const subfieldExists = this.symbolTable.findSubfieldInField(aliasName, subfieldName, node.spaceTag);
+          const subfieldExists = this.symbolTable.findSubfieldInField(redirectName, subfieldName, node.spaceTag);
           if (!subfieldExists) {
             // Calculate more precise location for the subfield part
             const subfieldLocation = this.calculateSubfieldLocation(node, node.alias!);
             errors.push({
-              message: `Undefined subfield '${subfieldName}' in field '${aliasName}'`,
+              message: `Undefined subfield '${subfieldName}' in field '${redirectName}'`,
               location: this.ensureValidRange(subfieldLocation || node.location),
               severity: 'error',
               code: 'undefined-subfield',
@@ -1227,7 +1227,7 @@ export class SemanticAnalyzer {
   private isCommonKeyword(text: string): boolean {
     const keywords = [
       'ro', 'rw', 'memio', 'register', 'subfields', 'mask', 'offset', 'size', 
-      'count', 'name', 'descr', 'alias', 'addr', 'word', 'type', 'align', 
+      'count', 'name', 'descr', 'redirect', 'addr', 'word', 'type', 'align', 
       'endian', 'big', 'little', 'op', 'r', 'd', 'ranges', 'prio', 'buslen',
       'rc', 'oe', 'ra', 'rb', 'rd', 'pmrn' // Common ISA field names
     ];
@@ -1525,14 +1525,14 @@ export class SemanticAnalyzer {
       return null;
     }
 
-    // Find the "alias=" text in the node's text
-    const aliasStart = node.text.indexOf('alias=');
-    if (aliasStart === -1) {
+    // Find the "redirect=" text in the node's text
+    const redirectStart = node.text.indexOf('redirect=');
+    if (redirectStart === -1) {
       return null;
     }
 
-    // Find the start of the alias value
-    const aliasValueStart = aliasStart + 'alias='.length;
+    // Find the start of the redirect value
+    const redirectValueStart = redirectStart + 'redirect='.length;
     
     // Find the semicolon that separates field from subfield
     const separatorIndex = aliasValue.indexOf(';');
@@ -1541,12 +1541,12 @@ export class SemanticAnalyzer {
     }
 
     // Calculate the character positions for the subfield part (including the separator)
-    const subfieldStartInAlias = separatorIndex; // Start at the separator
-    const subfieldEndInAlias = aliasValue.length; // End at the end of alias value
+    const subfieldStartInRedirect = separatorIndex; // Start at the separator
+    const subfieldEndInRedirect = aliasValue.length; // End at the end of redirect value
     
     // Calculate absolute positions within the line
-    const subfieldStartChar = node.location.start.character + aliasValueStart + subfieldStartInAlias;
-    const subfieldEndChar = node.location.start.character + aliasValueStart + subfieldEndInAlias;
+    const subfieldStartChar = node.location.start.character + redirectValueStart + subfieldStartInRedirect;
+    const subfieldEndChar = node.location.start.character + redirectValueStart + subfieldEndInRedirect;
 
     return {
       start: { line: node.location.start.line, character: subfieldStartChar },

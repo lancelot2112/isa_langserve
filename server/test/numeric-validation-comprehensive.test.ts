@@ -280,8 +280,8 @@ describe('Comprehensive Numeric Validation', () => {
     test('validates field count constraints', async () => {
       const content = `:space reg addr=32 word=64 type=register
 :reg GPR size=32 count=16 name=r%d
-:reg invalid_ref alias=r16  # Invalid: only r0-r15 exist
-:reg valid_ref alias=r15    # Valid: r15 exists`;
+:reg invalid_ref redirect=r16  # Invalid: only r0-r15 exist
+:reg valid_ref redirect=r15    # Valid: r15 exists`;
       
       const document = TextDocument.create('test://field-counts.isa', 'isa', 1, content);
       const diagnostics = await validateTextDocumentForTesting(document, defaultSettings, analyzer);
