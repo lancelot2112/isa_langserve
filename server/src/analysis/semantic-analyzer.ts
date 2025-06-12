@@ -18,6 +18,7 @@ import {
 import { ISASymbolTable } from './symbol-table';
 import { ISATokenizer } from '../parser/tokenizer';
 import { BitFieldParser } from '../parser/bit-field-parser';
+import { NumericParser } from '../utils/numeric-parser';
 
 export interface AnalysisResult {
   symbols: ISASymbolTable;
@@ -318,13 +319,36 @@ export class SemanticAnalyzer {
   }
 
   private parseFieldOrInstructionLine(line: string, lineNumber: number): FieldNode | InstructionNode | null {
-    // Parse: :<space_tag> <field_tag> [options...] or :<space_tag> <instruction_tag> (operands) [options...]
-    const match = line.match(/^:(\w+)\s+(\w+)(.*)$/);
+    // Parse: :<space_tag> <field_tag>[startindex-endindex] [options...] or :<space_tag> <instruction_tag> (operands) [options...]
+    const match = line.match(/^:(\w+)\s+(\w+(?:\[[-]?[0-9a-fA-FxXbBoO_]+-[-]?[0-9a-fA-FxXbBoO_]+\])?)(.*)$/);
     if (!match) return null;
     
     const spaceTag = match[1];
-    const tag = match[2];
+    const tagWithIndex = match[2];
     const rest = match[3]?.trim() || '';
+    
+    // Check if this is an indexed field tag
+    let tag = tagWithIndex;
+    let indexRange: { startIndex: number; endIndex: number; generatedNames?: string[] } | undefined;
+    
+    const indexMatch = tagWithIndex?.match(/^(\w+)\[([-]?[0-9a-fA-FxXbBoO_]+)-([-]?[0-9a-fA-FxXbBoO_]+)\]$/);
+    if (indexMatch && indexMatch[1] && indexMatch[2] && indexMatch[3]) {
+      tag = indexMatch[1];
+      const startIndexStr = indexMatch[2];
+      const endIndexStr = indexMatch[3];
+      
+      // Parse numeric literals (handle negative numbers)
+      const startIndex = this.parseIndexValue(startIndexStr);
+      const endIndex = this.parseIndexValue(endIndexStr);
+      
+      if (startIndex !== null && endIndex !== null) {
+        indexRange = {
+          startIndex,
+          endIndex,
+          generatedNames: this.generateIndexedFieldNames(tag, startIndex, endIndex)
+        };
+      }
+    }
     
     const location = {
       start: { line: lineNumber, character: 0 },
@@ -362,6 +386,7 @@ export class SemanticAnalyzer {
         subfields: [], // Parse subfields if present
         location,
         text: line,
+        ...(indexRange && { indexRange }), // Add index range if present
       };
       
       // Parse field options from rest of line
@@ -969,6 +994,21 @@ export class SemanticAnalyzer {
       }
     }
     
+    // Validate index operator if present
+    if (node.indexRange) {
+      errors.push(...this.validateIndexRange(node));
+    }
+    
+    // Validate mutually exclusive attributes (index range vs count/name)
+    if (node.indexRange && (node.count || node.name)) {
+      errors.push({
+        message: 'Index range syntax [startindex-endindex] cannot be used with count= or name= attributes',
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'mutually-exclusive-attributes',
+      });
+    }
+    
     // Validate bit fields in subfields
     for (const subfield of node.subfields) {
       if (subfield.bitField) {
@@ -1556,5 +1596,84 @@ export class SemanticAnalyzer {
         end: { line: node.location.start.line, character: subfieldEndChar }
       }
     };
+  }
+
+  /**
+   * Parse a numeric literal (decimal, hex, binary, octal)
+   */
+  private parseNumericLiteral(text: string): number | null {
+    const literal = NumericParser.parseNumericLiteral(text);
+    return literal ? literal.value : null;
+  }
+
+  /**
+   * Parse an index value (supporting negative numbers)
+   */
+  private parseIndexValue(text: string): number | null {
+    const trimmed = text.trim();
+    
+    // Handle negative numbers
+    if (trimmed.startsWith('-')) {
+      const absoluteValue = this.parseNumericLiteral(trimmed.slice(1));
+      return absoluteValue !== null ? -absoluteValue : null;
+    }
+    
+    // Handle positive numbers
+    return this.parseNumericLiteral(trimmed);
+  }
+
+  /**
+   * Generate indexed field names from a range
+   */
+  private generateIndexedFieldNames(baseTag: string, startIndex: number, endIndex: number): string[] {
+    const names: string[] = [];
+    for (let i = startIndex; i <= endIndex; i++) {
+      names.push(`${baseTag}${i}`);
+    }
+    return names;
+  }
+
+  /**
+   * Validate index range syntax and constraints
+   */
+  private validateIndexRange(node: FieldNode): ValidationError[] {
+    const errors: ValidationError[] = [];
+    
+    if (!node.indexRange) return errors;
+    
+    const { startIndex, endIndex } = node.indexRange;
+    
+    // Validation rule: startIndex must be >= 0
+    if (startIndex < 0) {
+      errors.push({
+        message: `Index range start index must be >= 0, got ${startIndex}`,
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'invalid-index-range',
+      });
+    }
+    
+    // Validation rule: endIndex must be >= startIndex  
+    if (endIndex < startIndex) {
+      errors.push({
+        message: `Index range end index (${endIndex}) must be >= start index (${startIndex})`,
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'invalid-index-range',
+      });
+    }
+    
+    // Validation rule: total count must be <= 65536 (reasonable upper limit)
+    const totalCount = endIndex - startIndex + 1;
+    if (totalCount > 65536) {
+      errors.push({
+        message: `Index range generates ${totalCount} fields, which exceeds the limit of 65536`,
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'index-range-too-large',
+      });
+    }
+    
+    return errors;
   }
 }

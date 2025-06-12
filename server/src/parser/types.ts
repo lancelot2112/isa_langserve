@@ -57,6 +57,12 @@ export enum TokenType {
   SPACE_INDIRECTION = 'spaceIndirection',
   CONTEXT_OPERATOR = 'contextOperator',
   
+  // Index operators
+  INDEX_BRACKET_OPEN = 'indexBracketOpen',
+  INDEX_BRACKET_CLOSE = 'indexBracketClose',
+  INDEX_RANGE_SEPARATOR = 'indexRangeSeparator',
+  INDEXED_FIELD_TAG = 'indexedFieldTag',
+  
   // Context indicators
   CONTEXT_BRACKET = 'contextBracket',
   COMMENT = 'comment',
@@ -100,6 +106,12 @@ export interface FieldNode extends ParseNode {
   description?: string;
   alias?: string;
   subfields: SubfieldNode[];
+  // Index operator properties
+  indexRange?: {
+    startIndex: number;
+    endIndex: number;
+    generatedNames?: string[];
+  };
 }
 
 export interface SubfieldNode extends ParseNode {

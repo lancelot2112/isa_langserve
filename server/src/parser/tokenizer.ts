@@ -96,6 +96,18 @@ export class ISATokenizer {
       return;
     }
     
+    // Index brackets and range separator
+    if (char === '[' || char === ']') {
+      this.tokenizeIndexBracket();
+      return;
+    }
+    
+    // Range separator (dash) - check if it's in an index context
+    if (char === '-' && this.isIndexRangeSeparator()) {
+      this.tokenizeIndexRangeSeparator();
+      return;
+    }
+    
     // Equals sign
     if (char === '=') {
       this.tokenizeEqualsSign();
@@ -308,6 +320,51 @@ export class ISATokenizer {
     this.addToken(TokenType.CONTEXT_OPERATOR, ';', location);
   }
 
+  private tokenizeIndexBracket(): void {
+    const start = this.getCurrentPosition();
+    const bracket = this.content[this.position];
+    this.advance();
+    
+    const location = this.createLocation(start, this.getCurrentPosition());
+    
+    if (bracket === '[') {
+      this.addToken(TokenType.INDEX_BRACKET_OPEN, '[', location);
+    } else if (bracket === ']') {
+      this.addToken(TokenType.INDEX_BRACKET_CLOSE, ']', location);
+    }
+  }
+
+  private tokenizeIndexRangeSeparator(): void {
+    const start = this.getCurrentPosition();
+    this.advance(); // skip '-'
+    
+    const location = this.createLocation(start, this.getCurrentPosition());
+    this.addToken(TokenType.INDEX_RANGE_SEPARATOR, '-', location);
+  }
+
+  private isIndexRangeSeparator(): boolean {
+    // Check if this dash is between two numeric literals in an index context
+    // Look back to see if we recently saw an opening bracket and a number, but NOT a space indirection
+    const recentContent = this.content.slice(Math.max(0, this.position - 50), this.position);
+    
+    // Don't treat as index separator if we're in a space indirection context
+    if (recentContent.includes('$')) {
+      return false;
+    }
+    
+    const hasOpenBracket = recentContent.includes('[');
+    const hasNumericBefore = /\d\s*$/.test(recentContent);
+    
+    // Look ahead to see if there's a number after the dash
+    const remainingContent = this.content.slice(this.position + 1, this.position + 20);
+    const hasNumericAfter = /^\s*[0-9]/.test(remainingContent);
+    
+    // Also check that we have an unclosed bracket (no closing bracket after the opening one)
+    const hasUnclosedBracket = hasOpenBracket && !recentContent.slice(recentContent.lastIndexOf('[')).includes(']');
+    
+    return hasOpenBracket && hasUnclosedBracket && hasNumericBefore && hasNumericAfter;
+  }
+
 
   private tokenizeAlphaNumeric(): void {
     const start = this.getCurrentPosition();
@@ -394,7 +451,32 @@ export class ISATokenizer {
       this.advance();
     }
     
-    const text = this.content.slice(startPos, this.position);
+    let text = this.content.slice(startPos, this.position);
+    
+    // Check if this identifier is followed by an index bracket [
+    if (this.position < this.content.length && this.content[this.position] === '[') {
+      // This is an indexed field tag - collect the entire [startindex-endindex] part
+      const indexStart = this.position;
+      this.advance(); // skip '['
+      
+      // Collect content until closing ']'
+      while (this.position < this.content.length && this.content[this.position] !== ']') {
+        this.advance();
+      }
+      
+      if (this.position < this.content.length && this.content[this.position] === ']') {
+        this.advance(); // skip ']'
+        text = this.content.slice(startPos, this.position); // Include the full indexed syntax
+        
+        const location = this.createLocation(start, this.getCurrentPosition());
+        this.addToken(TokenType.INDEXED_FIELD_TAG, text, location, this.currentSpaceTag || undefined);
+        return;
+      } else {
+        // Malformed bracket - reset position and treat as regular identifier
+        this.position = indexStart;
+      }
+    }
+    
     const location = this.createLocation(start, this.getCurrentPosition());
     
     // Determine token type based on context
