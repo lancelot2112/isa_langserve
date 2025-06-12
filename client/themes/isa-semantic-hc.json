@@ -33,6 +33,9 @@
       "fontStyle": "underline bold"
     },
     "aliasReference": "#ffd700",
+    "spaceIndirection": "#c586c0",
+    "indirectionArrow": "#ffffff",
+    "contextOperator": "#ffff00",
     "contextBracket": "#ffffff",
     "comment": "#7ca668"
   },

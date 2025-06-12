@@ -55,7 +55,7 @@ export enum TokenType {
   
   // Space indirection operations
   SPACE_INDIRECTION = 'spaceIndirection',
-  INDIRECTION_ARROW = 'indirectionArrow',
+  CONTEXT_OPERATOR = 'contextOperator',
   
   // Context indicators
   CONTEXT_BRACKET = 'contextBracket',

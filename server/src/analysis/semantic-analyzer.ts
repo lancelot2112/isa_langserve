@@ -425,11 +425,11 @@ export class SemanticAnalyzer {
       const trimmed = line.trim();
       if (!trimmed) continue;
       
-      // Parse subfield: name @(bits) [options]
-      const subfieldMatch = trimmed.match(/^(\w+)\s+@\(([^)]+)\)(.*)$/);
+      // Parse subfield: name[?postfix] @(bits) [options]
+      const subfieldMatch = trimmed.match(/^(\w+)(\?\w+)?\s+@\(([^)]+)\)(.*)$/);
       if (subfieldMatch) {
-        const [, tag, bitField] = subfieldMatch;
-        if (tag && bitField) {
+        const [, baseTag, postfix, bitField] = subfieldMatch;
+        if (baseTag && bitField) {
           const location = this.ensureValidRange({
             start: { line: 0, character: 0 },
             end: { line: 0, character: 1 },
@@ -439,7 +439,8 @@ export class SemanticAnalyzer {
             },
           });
           subfields.push({
-            tag,
+            tag: baseTag, // Use base name without postfix for symbol resolution
+            postfix: postfix || undefined, // Store postfix separately if present
             bitField: {
               text: `@(${bitField})`,
               location
@@ -575,7 +576,13 @@ export class SemanticAnalyzer {
   private validateTokens(tokens: Token[]): ValidationError[] {
     const errors: ValidationError[] = [];
     
-    for (const token of tokens) {
+    // First, process context reference chains (field;subfield patterns)
+    errors.push(...this.validateContextReferences(tokens));
+    
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (!token) continue;
+      
       // Check for invalid numeric literals marked during tokenization
       if (token.type === TokenType.UNDEFINED_REFERENCE && this.looksLikeInvalidNumeric(token.text)) {
         errors.push({
@@ -586,34 +593,26 @@ export class SemanticAnalyzer {
         });
       }
       
-      // Check for undefined field references
+      // Check for undefined field references (but skip those that are part of context chains)
       if (token.type === TokenType.FIELD_REFERENCE) {
+        // Skip if this is part of a context reference chain
+        if (this.isPartOfContextChain(tokens, i)) {
+          continue;
+        }
+        
         // Check if this field reference is valid in the current context
         // Skip very short tokens and common keywords to reduce false positives
         if (token.text.length >= 2 && !this.isCommonKeyword(token.text)) {
-          // Handle field.subfield notation specially
+          // Reject old field.subfield notation - breaking change
           if (token.text.includes('.')) {
             const [fieldName, subfieldName] = token.text.split('.');
             if (fieldName && subfieldName && token.spaceTag) {
-              const field = this.symbolTable.findSymbol(fieldName, token.spaceTag);
-              if (!field) {
-                errors.push({
-                  message: `Undefined field reference: '${fieldName}' in '${token.text}'`,
-                  location: this.ensureValidRange(token.location),
-                  severity: 'error',
-                  code: 'undefined-field-reference',
-                });
-              } else if (field.type === 'field') {
-                const subfieldExists = this.symbolTable.findSubfieldInField(fieldName, subfieldName, token.spaceTag);
-                if (!subfieldExists) {
-                  errors.push({
-                    message: `Undefined subfield '${subfieldName}' in field '${fieldName}'`,
-                    location: this.ensureValidRange(token.location),
-                    severity: 'error',
-                    code: 'undefined-subfield',
-                  });
-                }
-              }
+              errors.push({
+                message: `Invalid syntax: '${token.text}'. Use context operator syntax: '${fieldName};${subfieldName}'`,
+                location: this.ensureValidRange(token.location),
+                severity: 'error',
+                code: 'invalid-syntax',
+              });
             }
           } else {
             // Handle regular field references
@@ -907,7 +906,21 @@ export class SemanticAnalyzer {
     
     // Validate alias references
     if (node.alias) {
-      const aliasParts = node.alias.split('.');
+      // Breaking change: only support context operator (;) syntax
+      if (node.alias.includes('.') && !node.alias.includes(';')) {
+        const [fieldName, subfieldName] = node.alias.split('.');
+        if (fieldName && subfieldName) {
+          errors.push({
+            message: `Invalid alias syntax: '${node.alias}'. Use context operator syntax: '${fieldName};${subfieldName}'`,
+            location: this.ensureValidRange(node.location),
+            severity: 'error',
+            code: 'invalid-syntax',
+          });
+          return errors; // Don't continue with validation
+        }
+      }
+      
+      const aliasParts = node.alias.split(';');
       const aliasName = aliasParts[0];
       const subfieldName = aliasParts[1];
       
@@ -1056,16 +1069,11 @@ export class SemanticAnalyzer {
   }
   
   private isValidOperandReference(operand: string, spaceTag: string): boolean {
-    // First check if it's a direct field/subfield reference
-    if (this.symbolTable.hasSymbol(operand, spaceTag)) {
-      return true;
-    }
-    
-    // Handle field.subfield notation (e.g., "spr22.lsb")
-    if (operand.includes('.')) {
-      const [fieldName, subfieldName] = operand.split('.');
+    // Handle field;subfield context notation (e.g., "spr22;lsb")
+    if (operand.includes(';')) {
+      const [fieldName, subfieldName] = operand.split(';');
       if (fieldName && subfieldName) {
-        // Check if the field exists
+        // Only check current space unless explicitly redirected with $space;
         const field = this.symbolTable.findSymbol(fieldName, spaceTag);
         if (field && field.type === 'field') {
           // Check if the subfield exists within this field
@@ -1075,7 +1083,21 @@ export class SemanticAnalyzer {
       return false;
     }
     
-    // Check if it's a subfield of any field in the same space
+    // Reject old field.subfield notation - breaking change
+    if (operand.includes('.')) {
+      const [fieldName, subfieldName] = operand.split('.');
+      if (fieldName && subfieldName) {
+        // This will be caught as an invalid operand reference
+        return false;
+      }
+    }
+    
+    // Check if it's a direct field/subfield reference in the current space only
+    if (this.symbolTable.hasSymbol(operand, spaceTag)) {
+      return true;
+    }
+    
+    // Check if it's a subfield of any field in the current space only
     const fieldsInSpace = this.symbolTable.getSymbolsInScope(spaceTag);
     for (const field of fieldsInSpace) {
       if (field.definition && field.type === 'field') {
@@ -1089,8 +1111,113 @@ export class SemanticAnalyzer {
       }
     }
     
-    // Check for subfield symbols directly
-    if (this.symbolTable.hasSymbol(operand, spaceTag)) {
+    return false;
+  }
+
+  private validateContextReferences(tokens: Token[]): ValidationError[] {
+    const errors: ValidationError[] = [];
+    
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (!token) continue;
+      
+      // Look for field reference followed by context operator
+      if (token.type === TokenType.FIELD_REFERENCE && 
+          i + 2 < tokens.length && 
+          tokens[i + 1]?.type === TokenType.CONTEXT_OPERATOR &&
+          tokens[i + 2]?.type === TokenType.FIELD_REFERENCE) {
+        
+        const fieldToken = token;
+        const subfieldToken = tokens[i + 2];
+        if (!subfieldToken) continue;
+        
+        // Validate the context reference
+        if (fieldToken.spaceTag) {
+          const field = this.symbolTable.findSymbol(fieldToken.text, fieldToken.spaceTag);
+          if (!field) {
+            errors.push({
+              message: `Undefined field reference: '${fieldToken.text}'`,
+              location: this.ensureValidRange(fieldToken.location),
+              severity: 'error',
+              code: 'undefined-field-reference',
+            });
+          } else if (field.type === 'field') {
+            const subfieldExists = this.symbolTable.findSubfieldInField(fieldToken.text, subfieldToken.text, fieldToken.spaceTag);
+            if (!subfieldExists) {
+              errors.push({
+                message: `Undefined subfield '${subfieldToken.text}' in field '${fieldToken.text}'`,
+                location: this.ensureValidRange(subfieldToken.location),
+                severity: 'error',
+                code: 'undefined-subfield',
+              });
+            }
+          }
+        }
+        
+        // Skip the context operator and subfield tokens in the main loop
+        i += 2;
+      }
+      
+      // Handle space indirection with context chains ($space;field;subfield)
+      else if (token.type === TokenType.SPACE_INDIRECTION && 
+               i + 4 < tokens.length && 
+               tokens[i + 1]?.type === TokenType.CONTEXT_OPERATOR &&
+               tokens[i + 2]?.type === TokenType.FIELD_REFERENCE &&
+               tokens[i + 3]?.type === TokenType.CONTEXT_OPERATOR &&
+               tokens[i + 4]?.type === TokenType.FIELD_REFERENCE) {
+        
+        const spaceToken = token;
+        const fieldToken = tokens[i + 2];
+        const subfieldToken = tokens[i + 4];
+        
+        if (!fieldToken || !subfieldToken) continue;
+        
+        // For space indirection, use the space tag from the space token
+        const spaceTag = spaceToken.spaceTag || spaceToken.text.substring(1); // Remove $ prefix
+        
+        const field = this.symbolTable.findSymbol(fieldToken.text, spaceTag);
+        if (!field) {
+          errors.push({
+            message: `Undefined field reference: '${fieldToken.text}'`,
+            location: this.ensureValidRange(fieldToken.location),
+            severity: 'error',
+            code: 'undefined-field-reference',
+          });
+        } else if (field.type === 'field') {
+          const subfieldExists = this.symbolTable.findSubfieldInField(fieldToken.text, subfieldToken.text, spaceTag);
+          if (!subfieldExists) {
+            errors.push({
+              message: `Undefined subfield '${subfieldToken.text}' in field '${fieldToken.text}'`,
+              location: this.ensureValidRange(subfieldToken.location),
+              severity: 'error',
+              code: 'undefined-subfield',
+            });
+          }
+        }
+        
+        // Skip all tokens in this context chain
+        i += 4;
+      }
+    }
+    
+    return errors;
+  }
+
+  private isPartOfContextChain(tokens: Token[], index: number): boolean {
+    // Check if this field reference is followed by a context operator
+    if (index + 1 < tokens.length && tokens[index + 1]?.type === TokenType.CONTEXT_OPERATOR) {
+      return true;
+    }
+    
+    // Check if this field reference is preceded by a context operator
+    if (index > 0 && tokens[index - 1]?.type === TokenType.CONTEXT_OPERATOR) {
+      return true;
+    }
+    
+    // Check if this is part of a space indirection context chain
+    if (index > 1 && 
+        tokens[index - 1]?.type === TokenType.CONTEXT_OPERATOR &&
+        tokens[index - 2]?.type === TokenType.SPACE_INDIRECTION) {
       return true;
     }
     
@@ -1136,10 +1263,18 @@ export class SemanticAnalyzer {
     
     // Validate operand references
     for (const operand of node.operands) {
+      // Skip empty operands (from empty parentheses)
+      if (!operand || operand.trim() === '') continue;
+      
+      // Skip space indirection operands (they are validated separately by validateContextReferences)
+      if (operand.startsWith('$')) continue;
+      
       if (!operand.startsWith('@') && !this.isValidOperandReference(operand, node.spaceTag)) {
+        // Calculate precise location of the operand within the instruction line
+        const operandLocation = this.calculateOperandLocation(node, operand);
         errors.push({
           message: `Undefined field reference: ${operand}`,
-          location: this.ensureValidRange(node.location),
+          location: this.ensureValidRange(operandLocation || node.location),
           severity: 'error',
           code: 'undefined-field-reference',
         });
@@ -1257,7 +1392,7 @@ export class SemanticAnalyzer {
 
   private enhanceTokens(tokens: Token[], _uri: string): Token[] {
     // Enhance tokens with semantic information from symbol table
-    return tokens.map(token => {
+    return tokens.map((token, index) => {
       const enhanced = { ...token };
       
       // Add space tag coloring
@@ -1266,9 +1401,43 @@ export class SemanticAnalyzer {
         enhanced.spaceTag = spaceName;
       }
       
-      // Mark undefined references
+      // Ensure space indirection tokens have proper space tag for coloring
+      if (token.type === TokenType.SPACE_INDIRECTION && !enhanced.spaceTag) {
+        const spaceName = token.text.replace('$', '');
+        enhanced.spaceTag = spaceName;
+      }
+      
+      // Handle context chains: $space;field;subfield
       if (token.type === TokenType.FIELD_REFERENCE) {
-        const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
+        let contextSpaceTag = token.spaceTag;
+        
+        // Check if this field reference is part of a space indirection context chain
+        if (index >= 2 && 
+            tokens[index - 1]?.type === TokenType.CONTEXT_OPERATOR &&
+            tokens[index - 2]?.type === TokenType.SPACE_INDIRECTION) {
+          // Use the space tag from the space indirection token
+          const spaceIndirectionToken = tokens[index - 2];
+          if (spaceIndirectionToken && spaceIndirectionToken.spaceTag) {
+            contextSpaceTag = spaceIndirectionToken.spaceTag;
+            enhanced.spaceTag = contextSpaceTag;
+          }
+        }
+        // Check if this is the second field reference in $space;field;subfield
+        else if (index >= 4 &&
+                 tokens[index - 1]?.type === TokenType.CONTEXT_OPERATOR &&
+                 tokens[index - 2]?.type === TokenType.FIELD_REFERENCE &&
+                 tokens[index - 3]?.type === TokenType.CONTEXT_OPERATOR &&
+                 tokens[index - 4]?.type === TokenType.SPACE_INDIRECTION) {
+          // Use the space tag from the space indirection token
+          const spaceIndirectionToken = tokens[index - 4];
+          if (spaceIndirectionToken && spaceIndirectionToken.spaceTag) {
+            contextSpaceTag = spaceIndirectionToken.spaceTag;
+            enhanced.spaceTag = contextSpaceTag;
+          }
+        }
+        
+        // Only check current space tag - cross-space references require explicit $space; prefix
+        const symbol = this.symbolTable.findSymbol(token.text, contextSpaceTag);
         if (!symbol) {
           enhanced.type = TokenType.UNDEFINED_REFERENCE;
         }
@@ -1279,11 +1448,80 @@ export class SemanticAnalyzer {
   }
 
   /**
+   * Calculate the precise location of an operand within an instruction line
+   * Returns the location that points to just the operand (e.g., "not_def" in ":other invinsn (not_def,AA)")
+   */
+  private calculateOperandLocation(node: InstructionNode, operand: string): SourceLocation | null {
+    if (!node.text || !operand) {
+      return null;
+    }
+
+    // Find the parentheses that contain the operands
+    const parenStart = node.text.indexOf('(');
+    if (parenStart === -1) {
+      return null;
+    }
+
+    // Extract the content within parentheses
+    const parenEnd = node.text.indexOf(')', parenStart);
+    if (parenEnd === -1) {
+      return null;
+    }
+
+    const operandsText = node.text.substring(parenStart + 1, parenEnd);
+    
+    // Split operands and find the index of our target operand
+    const operands = operandsText.split(',').map(op => op.trim());
+    const operandIndex = operands.findIndex(op => op === operand);
+    
+    if (operandIndex === -1) {
+      return null;
+    }
+
+    // Calculate the position by finding where this operand starts within the operands text
+    let currentPos = 0;
+    for (let i = 0; i < operandIndex; i++) {
+      const prevOperand = operands[i];
+      if (prevOperand) {
+        // Find the actual position of this operand (accounting for whitespace)
+        const operandPos = operandsText.indexOf(prevOperand, currentPos);
+        if (operandPos !== -1) {
+          currentPos = operandPos + prevOperand.length;
+          // Skip past the comma and any whitespace
+          const commaPos = operandsText.indexOf(',', currentPos);
+          if (commaPos !== -1) {
+            currentPos = commaPos + 1;
+          }
+        }
+      }
+    }
+
+    // Find the actual start position of our target operand
+    const operandStartInOperands = operandsText.indexOf(operand, currentPos);
+    if (operandStartInOperands === -1) {
+      return null;
+    }
+
+    // Calculate absolute positions within the line
+    const operandStartChar = node.location.start.character + parenStart + 1 + operandStartInOperands;
+    const operandEndChar = operandStartChar + operand.length;
+
+    return {
+      start: { line: node.location.start.line, character: operandStartChar },
+      end: { line: node.location.start.line, character: operandEndChar },
+      range: {
+        start: { line: node.location.start.line, character: operandStartChar },
+        end: { line: node.location.start.line, character: operandEndChar }
+      }
+    };
+  }
+
+  /**
    * Calculate the precise location of a subfield within an alias value
-   * Returns the location that points to just the subfield part (e.g., ".lsb" in "spr22.lsb")
+   * Returns the location that points to just the subfield part (e.g., ";lsb" in "spr22;lsb")
    */
   private calculateSubfieldLocation(node: FieldNode, aliasValue: string): SourceLocation | null {
-    if (!node.text || !aliasValue.includes('.')) {
+    if (!node.text || !aliasValue.includes(';')) {
       return null;
     }
 
@@ -1296,14 +1534,14 @@ export class SemanticAnalyzer {
     // Find the start of the alias value
     const aliasValueStart = aliasStart + 'alias='.length;
     
-    // Find the dot that separates field from subfield
-    const dotIndex = aliasValue.indexOf('.');
-    if (dotIndex === -1) {
+    // Find the semicolon that separates field from subfield
+    const separatorIndex = aliasValue.indexOf(';');
+    if (separatorIndex === -1) {
       return null;
     }
 
-    // Calculate the character positions for the subfield part (including the dot)
-    const subfieldStartInAlias = dotIndex; // Start at the dot
+    // Calculate the character positions for the subfield part (including the separator)
+    const subfieldStartInAlias = separatorIndex; // Start at the separator
     const subfieldEndInAlias = aliasValue.length; // End at the end of alias value
     
     // Calculate absolute positions within the line

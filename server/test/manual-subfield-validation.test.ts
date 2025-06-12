@@ -83,7 +83,7 @@ describe('Subfield Alias Validation Fix', () => {
     // This test verifies the integration works correctly by directly calling the validation
     const content = `:space reg addr=32 word=64 type=register
 :reg TEST_FIELD size=64
-:reg ALIAS_FIELD alias=TEST_FIELD.lsb`;
+:reg ALIAS_FIELD alias=TEST_FIELD;lsb`;
 
     // Since parsing multi-line subfields is the real issue, this test shows that
     // when subfields ARE properly attached, my validation fix works correctly

@@ -285,7 +285,9 @@ export class ISASymbolTable implements SymbolTable {
     // If this field has a count > 1 and a name pattern, create the individual field symbols
     if (node.count && node.count > 1 && node.name && node.name.includes('%d')) {
       for (let i = 0; i < node.count; i++) {
-        const fieldName = node.name.replace('%d', i.toString());
+        // Strip quotes from the name pattern if present
+        const namePattern = node.name.replace(/^["']|["']$/g, '');
+        const fieldName = namePattern.replace('%d', i.toString());
         const arrayFieldSymbol: Symbol = {
           name: fieldName,
           type: 'field',

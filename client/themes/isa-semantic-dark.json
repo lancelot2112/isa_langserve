@@ -34,6 +34,9 @@
     "fieldReference": "#dcdcaa",
     "undefinedReference": "#f44747",
     "aliasReference": "#d7ba7d",
+    "spaceIndirection": "#c586c0",
+    "indirectionArrow": "#808080",
+    "contextOperator": "#ffd700",
     "contextBracket": "#808080",
     "comment": "#6a9955"
   },

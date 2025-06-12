@@ -95,7 +95,7 @@ describe('Comment-Specified Error Tests', () => {
   msb @(0-31)
   lsb @(32-63)
 }
-:reg SUBFIELD_NOT_DEFINED alias=spr22.NDF`;
+:reg SUBFIELD_NOT_DEFINED alias=spr22;NDF`;
       
       const document = TextDocument.create('test://subfield-error.isa', 'isa', 1, content);
       const diagnostics = await validateTextDocumentForTesting(document, defaultSettings, analyzer);

@@ -121,7 +121,28 @@ When concatenating, segments are shifted and ORed together to form the final fie
 
 #### 5.2.3 References
 - **Scoped Reference**: Each space contains a number of `field` or `instruction` declarations that are valid for reference by tag inside that space.  To change the scope to that space one can use the `space directive` indicating we are going to declare a field or instruction in that space.  
-- ** Indirect Reference**: Indirect reference to another space is available by using the `$[space_tag]->[field_tag].[subfield_tag]` operator.  The `$[space_tag]->` changes the scope to allow naming a field or field subfield combination from within that other space.
+- **Context Reference**: Hierarchical references use the context operator (`;`) for all field and space indirection:
+  - **Field-Subfield References**: `field;subfield` (e.g., `spr22;lsb`)
+  - **Space Indirection**: `$space;field` or `$space;field;subfield` (e.g., `$reg;spr22;lsb`)
+  - **Context Operator Semantics**: The semicolon (`;`) creates a left-to-right evaluation chain where each element is resolved within the context of the preceding element
+
+#### 5.2.4 Context Reference Grammar
+
+The context operator (`;`) provides a unified syntax for hierarchical references:
+
+```
+context_reference := base_context (';' context_element)*
+base_context      := space_reference | identifier  
+context_element   := identifier
+space_reference   := '$' identifier
+```
+
+**Examples**:
+- `spr22;lsb` - subfield `lsb` within field `spr22`
+- `$reg;spr22` - field `spr22` within space `reg`
+- `$reg;spr22;lsb` - subfield `lsb` within field `spr22` within space `reg`
+
+**Tokenization**: The semicolon (`;`) is treated as a distinct operator token, allowing periods (`.`) to be used freely within identifier names without ambiguity.
  
 ## 6. Global Parameters (`:param`)
 
@@ -227,13 +248,13 @@ There are several ways to define fields:
 
 **Alias Definition**:
 ```
-:<space_tag> <field_tag> [alias=<other field_name>[.<subfield>]] [descr="<description>"] [subfields={list of subfield definitions}]
+:<space_tag> <field_tag> [alias=<context_reference>] [descr="<description>"] [subfields={list of subfield definitions}]
 ```
 
 Aliases take on the offset and size of the other field_tag or subfield referenced in the alias option_tag.
 
 **Alias Field Options**:
-- **REQUIRED** `alias=<other field_name>[.<subfield>]`: References a previously defined `field_name` or `subfield` of that field. This creates a new `field_name` that maps to the same memory offset and bits.
+- **REQUIRED** `alias=<context_reference>`: References a previously defined field using context operator syntax (e.g., `field;subfield` or `$space;field;subfield`). This creates a new `field_name` that maps to the same memory offset and bits.
 - **OPTIONAL** `descr="<description>"`: Textual description.
 
 **Appending Subfield Definitions**:

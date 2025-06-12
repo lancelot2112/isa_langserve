@@ -32,6 +32,9 @@ export enum SemanticTokenTypes {
   FIELD_REFERENCE = 'fieldReference',
   UNDEFINED_REFERENCE = 'undefinedReference',
   ALIAS_REFERENCE = 'aliasReference',
+  SPACE_INDIRECTION = 'spaceIndirection',
+  INDIRECTION_ARROW = 'indirectionArrow',
+  CONTEXT_OPERATOR = 'contextOperator',
   CONTEXT_BRACKET = 'contextBracket',
   COMMENT = 'comment'
 }

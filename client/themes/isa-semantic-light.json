@@ -33,6 +33,9 @@
       "fontStyle": "underline"
     },
     "aliasReference": "#9a5b13",
+    "spaceIndirection": "#af00db",
+    "indirectionArrow": "#808080",
+    "contextOperator": "#b8860b",
     "contextBracket": "#808080",
     "comment": "#008000"
   },

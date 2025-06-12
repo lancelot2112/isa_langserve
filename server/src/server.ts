@@ -74,6 +74,8 @@ const baseTokenTypes = [
   'directive',
   'spaceDirective', 
   'spaceTag',
+  'spaceIndirection',
+  'contextOperator',
   'fieldTag',
   'subfieldTag',
   'instructionTag',
@@ -266,8 +268,13 @@ connection.onRequest('textDocument/semanticTokens/full', (params: SemanticTokens
     for (const token of sortedTokens) {
       let tokenTypeName = token.type;
       
+      // Skip context operators and equals signs to keep them white (default color)
+      if (token.type === 'contextOperator' || token.type === 'equalsSign') {
+        continue;
+      }
+      
       // Use space-specific token type for space tags
-      if ((token.type === 'spaceTag' || token.type === 'spaceDirective') && token.spaceTag) {
+      if ((token.type === 'spaceTag' || token.type === 'spaceDirective' || token.type === 'spaceIndirection') && token.spaceTag) {
         const spaceSpecificType = `spaceTag.${token.spaceTag}`;
         if (semanticTokensLegend.tokenTypes.includes(spaceSpecificType)) {
           tokenTypeName = spaceSpecificType as any;
