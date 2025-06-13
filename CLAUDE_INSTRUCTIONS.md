@@ -1,30 +1,29 @@
-# Claude Instructions: Index Operator Implementation
+# Claude Instructions: Alias to Redirect Implementation
 
 ## Your Mission
-Implement the index operator addendum to add array-like access syntax to the ISA language.
+Implement the alias to redirect syntax change to improve clarity in field definitions.
 
 ## Tasks Checklist
-- [ ] 1. Read the `spec/index_operator_addendum.md` to understand the new [] syntax
-- [ ] 2. Update the main specification to include index operator grammar and semantics
-- [ ] 3. Create example files demonstrating array[index] and register[index] syntax
-- [ ] 4. Update existing examples to show how indexed access works with register files
-- [ ] 5. Add validation rules for index operator usage
-- [ ] 6. Document the operator precedence and scoping rules
-- [ ] 7. Run any available tests and create new test cases for index operator
-- [ ] 8. Commit your changes with descriptive messages
-- [ ] 9. Push to the remote branch
-- [ ] 10. Create a pull request to master with summary of changes
+- [ ] 1. Read the `spec/alias_to_redirect_addendum.md` to understand the changes
+- [ ] 2. Update the main specification to replace alias= with redirect= syntax
+- [ ] 3. Update all example files that use alias= to use redirect= instead
+- [ ] 4. Ensure the semantic meaning remains the same but syntax is updated
+- [ ] 5. Update any validation rules that check for alias syntax
+- [ ] 6. Run any available tests to ensure compatibility
+- [ ] 7. Commit your changes with descriptive messages
+- [ ] 8. Push to the remote branch
+- [ ] 9. Create a pull request to master with summary of changes
 
 ## Focus
-Adding `[]` operator support for array-like access to register files and memory spaces.
+Global find/replace of `alias=` with `redirect=` while maintaining semantic equivalence.
 
 ## Branch
-You are working on: `feature/index-operator-addendum`
+You are working on: `feature/alias-redirect-addendum`
 
 ## Key Files to Update
 - Main specification file (`spec/isa_language_specification.md`)
-- Example files to demonstrate new syntax
-- Grammar and validation sections of the specification
+- All `.isa` files in `examples/` directory that use alias=
+- Any validation or documentation referencing alias syntax
 
 ## Start Here
-Begin by reading the addendum file and then planning how to integrate the [] operator into the existing grammar.
+Begin by reading the addendum file and then searching for all occurrences of `alias=` across the codebase.

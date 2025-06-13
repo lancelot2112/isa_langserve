@@ -72,11 +72,11 @@ describe('Comment-Specified Error Tests', () => {
     });
 
     test('field count limit: spr1024 should be undefined', async () => {
-      // From line 28: ":reg NAME_NOT_DEFINED alias=spr1024"
+      // From line 28: ":reg NAME_NOT_DEFINED redirect=spr1024"
       // Comment: "Should indicate field name is not available (only 1024 count which maxes at spr1023)"
       const content = `:space reg addr=32 word=64 type=register
 :reg SPR size=64 count=1024 name=spr%d
-:reg NAME_NOT_DEFINED alias=spr1024`;
+:reg NAME_NOT_DEFINED redirect=spr1024`;
       
       const document = TextDocument.create('test://spr-limit.isa', 'isa', 1, content);
       const diagnostics = await validateTextDocumentForTesting(document, defaultSettings, analyzer);
@@ -88,14 +88,14 @@ describe('Comment-Specified Error Tests', () => {
     });
 
     test('undefined subfield: spr22.NDF should error', async () => {
-      // From line 32: ":reg SUBFIELD_NOT_DEFINED alias=spr22.NDF"
+      // From line 32: ":reg SUBFIELD_NOT_DEFINED redirect=spr22.NDF"
       // Comment: "Should indicate subfield not available. Only .NDF should be underlined"
       const content = `:space reg addr=32 word=64 type=register
 :reg SPR size=64 count=1024 name=spr%d subfields={
   msb @(0-31)
   lsb @(32-63)
 }
-:reg SUBFIELD_NOT_DEFINED alias=spr22;NDF`;
+:reg SUBFIELD_NOT_DEFINED redirect=spr22;NDF`;
       
       const document = TextDocument.create('test://subfield-error.isa', 'isa', 1, content);
       const diagnostics = await validateTextDocumentForTesting(document, defaultSettings, analyzer);

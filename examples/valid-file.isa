@@ -12,9 +12,9 @@
 # should still be the basic command color.
 :reg GPR[0-31] size=32
 
-# An alias of a previously named field (GPR[0-31] above provides GPR0, GPR1, ..., GPR31)
+# An redirect of a previously named field (GPR[0-31] above provides GPR0, GPR1, ..., GPR31)
 # fields and subfields should get the same color as the space they are defined in.
-:reg XOM alias=GPR4
+:reg XOM redirect=GPR4
 subfields={
     OV @(0-4) descr="Overflow Flag"
     EXCEPT @(5-9) descr="Exception Flag"

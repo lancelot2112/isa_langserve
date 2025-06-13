@@ -162,18 +162,18 @@ describe('Example-Based Tests', () => {
       expect(invalidNameErrors.length).toBeGreaterThan(0);
     });
 
-    test('handles complex alias references', () => {
+    test('handles complex redirect references', () => {
       const tokenizer = new ISATokenizer(singleWordContent, {
         enableSemanticTokens: true,
         spaceTagColors: {},
       });
       const tokens = tokenizer.tokenize();
 
-      // Should handle Te-S_T..F alias reference
-      const aliasTokens = tokens.filter(t => 
+      // Should handle Te-S_T..F redirect reference
+      const redirectTokens = tokens.filter(t => 
         t.text.includes('Te-S_T.') || t.text === 'F'
       );
-      expect(aliasTokens.length).toBeGreaterThan(0);
+      expect(redirectTokens.length).toBeGreaterThan(0);
     });
   });
 

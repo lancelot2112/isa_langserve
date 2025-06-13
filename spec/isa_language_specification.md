@@ -282,15 +282,15 @@ or
 - **OPTIONAL** `reset=<numeric_literal>`: Reset value (default 0 if not provided). Must be valid numeric literal. Default = 0.
 - **OPTIONAL** `descr="<description>"`: Textual description.
 
-**Alias Definition**:
+**Redirect Definition**:
 ```
-:<space_tag> <field_tag> [alias=<context_reference>] [descr="<description>"] [subfields={list of subfield definitions}]
+:<space_tag> <field_tag> [redirect=<context_reference>] [descr="<description>"] [subfields={list of subfield definitions}]
 ```
 
-Aliases take on the offset and size of the other field_tag or subfield referenced in the alias option_tag.
+Redirects take on the offset and size of the other field_tag or subfield referenced in the redirect option_tag.
 
-**Alias Field Options**:
-- **REQUIRED** `alias=<context_reference>`: References a previously defined field using context operator syntax (e.g., `field;subfield` or `$space;field;subfield`). This creates a new `field_name` that maps to the same memory offset and bits.
+**Redirect Field Options**:
+- **REQUIRED** `redirect=<context_reference>`: References a previously defined field using context operator syntax (e.g., `field;subfield` or `$space;field;subfield`). This creates a new `field_name` that maps to the same memory offset and bits.
 - **OPTIONAL** `descr="<description>"`: Textual description.
 
 **Appending Subfield Definitions**:
@@ -336,12 +336,12 @@ Each subfield definition shall occur within a `subfields={}` option tag context 
 #### 9.1.3 Field Validation Rules
 
 - **Simple Types**: All simple types must have a valid format and value according to the simple type.
-- **Alias Mutual Exclusivity**: `alias` cannot be used with `offset`, `size`, or `reset`
+- **Redirect Mutual Exclusivity**: `redirect` cannot be used with `offset` or `size` as it will take on the `size` and `offset` of the redirect 
 - **Index Range Validation**: When using bracket notation, `start_index` ≤ `end_index`, both must be ≥ 0, and the total count (`end_index - start_index + 1`) must be ≤ 65535
 - **Mutually Exclusive Attributes**: Bracket notation cannot be used with deprecated `count=` or `name=` attributes
-- **Field Name Tracking**: Generated field_names (from bracket notation or field_tag if no bracket notation provided) are tracked for later alias validation or access.
+- **Field Name Tracking**: Generated field_names (from bracket notation or field_tag if no bracket notation provided) are tracked for later redirect validation or access.
 - **Size Limit**: `size` must be ≤ 512 bits and > 0 bits
-- **Range Validation**: The start and end offset shall be tracked to check for overlaps. Aliases can overlap without warning but new fields shall generate a warning if they overlap.
+- **Range Validation**: The start and end offset shall be tracked to check for overlaps. Redirects can overlap without warning but new fields shall generate a warning if they overlap.
 - **Bitfield Numbering**: Bit indices shall be in the range 0..size-1 of the field definition with 0 being the most significant bit and size-1 being the least significant.
 
 #### 9.1.4 Field Examples
@@ -362,9 +362,9 @@ Each subfield definition shall occur within a `subfields={}` option tag context 
 # Hex indices for special register ranges
 :reg MSR[0x0-0xF] offset=0x2000 size=64
 
-# Register alias (mutually exclusive with other options except description)
-:reg SP alias=GPR1
-:reg SP2 alias=GPR2 descr="Special Purpose 2"
+# Register redirect (mutually exclusive with other options except description)
+:reg SP redirect=GPR1
+:reg SP2 redirect=GPR2 descr="Special Purpose 2"
 
 # Declaring subfields
 :reg XER offset=0x200 size=32 reset=0x0 subfields={

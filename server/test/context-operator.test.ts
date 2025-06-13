@@ -62,7 +62,7 @@ describe('Context Operator Tests', () => {
   });
 
   describe('Validation Tests', () => {
-    test('validates field;subfield alias references', () => {
+    test('validates field;subfield redirect references', () => {
       const content = `:space reg addr=32 word=64 type=register
 
 :reg SPR size=64 count=1024 name="spr%d"
@@ -71,7 +71,7 @@ subfields={
     lsb @(32-63)
 }
 
-:reg CONTEXT_ALIAS alias=spr22;lsb`;
+:reg CONTEXT_REDIRECT redirect=spr22;lsb`;
 
       const document = TextDocument.create('test://context-alias.isa', 'isa', 1, content);
       const result = analyzer.analyzeFile(document);
@@ -118,7 +118,7 @@ subfields={
     lsb @(32-63)
 }
 
-:reg BAD_ALIAS alias=undefined_field;lsb`;
+:reg BAD_REDIRECT redirect=undefined_field;lsb`;
 
       const document = TextDocument.create('test://context-undefined.isa', 'isa', 1, content);
       const result = analyzer.analyzeFile(document);
@@ -139,7 +139,7 @@ subfields={
     lsb @(32-63)
 }
 
-:reg BAD_ALIAS alias=spr22;undefined_sub`;
+:reg BAD_REDIRECT redirect=spr22;undefined_sub`;
 
       const document = TextDocument.create('test://context-undefined-sub.isa', 'isa', 1, content);
       const result = analyzer.analyzeFile(document);
@@ -184,7 +184,7 @@ subfields={
     lsb @(32-63)
 }
 
-:reg LEGACY_ALIAS alias=spr22.lsb`;
+:reg LEGACY_REDIRECT redirect=spr22.lsb`;
 
       const document = TextDocument.create('test://legacy-rejected.isa', 'isa', 1, content);
       const result = analyzer.analyzeFile(document);
