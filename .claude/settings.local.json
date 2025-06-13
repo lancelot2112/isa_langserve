@@ -15,7 +15,9 @@
       "Bash(npm test:*)",
       "Bash(rg:*)",
       "Bash(find:*)",
-      "Bash(npx jest:*)"
+      "Bash(npx jest:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
