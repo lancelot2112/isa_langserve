@@ -73,7 +73,7 @@ Bit specifications are used in field definitions and instruction definitions. Th
 
 **Single Bit**:
 - `@(<bit_index>)`: A single bit.
-- Example: `AA?a @(30)` refers to bit 30.
+- Example: `AA @(30)` refers to bit 30.
 
 **Bit Range**:
 - `@(<start_bit>-<end_bit>)`: A contiguous range of bits, inclusive. `start_bit` is typically the more significant bit index.
@@ -315,11 +315,10 @@ Subfields defined in untagged fields do not have a memory space and can be refer
 
 Each subfield definition shall occur within a `subfields={}` option tag context window. Only one subfield definition shall be on a line and following the following format:
 
-**Syntax**: `<subfield_tag>[?<postfix>] @(<bit_spec>)[|<bit_spec>...] [op=<type>[.<subtype>][|<type>...]] [descr="<description>"]`
+**Syntax**: `<subfield_tag> @(<bit_spec>)[|<bit_spec>...] [op=<type>[.<subtype>][|<type>...]] [descr="<description>"]`
 
 **Subfield Components**:
 - **REQUIRED** `<subfield_tag>`: Unique name for the subfield (e.g., `AA`, `BD`, `rA`). `subfield_tag` shall be highlighted/colored the same as the encompassing `space_tag`.
-- **OPTIONAL** `?<postfix>`: Optional single-character postfix (e.g., `?a`, `?l`). If present, `op` often includes `func`. This postfix can be appended to the `field_name` or `instruction_name` during disassembly (e.g., `b` + `LK?l` -> `bl`) if bit is set. Anything with a postfix needs to be a single bit.  The postfix portion including the ? is not part of the `<subfield_tag>`.
 - **REQUIRED** `@(<bit_field>)`: Bit specification for the field within a field (see "Bit Specification Details" in Section 8).
   - Example: `DCRN @(16-20|11-15)` means bits 16-20 are concatenated with bits 11-15 to form the `DCRN` field.
 - **OPTIONAL** `op=<type>[.<subtype>][|<type>...]`: Defines the operational type and properties of the field. Multiple types can be OR'd using `|`.
@@ -378,14 +377,14 @@ Each subfield definition shall occur within a `subfields={}` option tag context 
 
 # Untagged subfield definitions for instructions
 :insn subfields={
-    AA?a @(30) op=func descr="Absolute Address flag, bit 30"
+    AA @(30) op=func descr="Absolute Address flag, bit 30"
     BD @(16-29|0b00) op=imm descr="Displacement, bits 16-29, padded with 00b"
     rA @(11-15) op=reg.GPR descr="Register A, bits 11-15, is a GPR"
     opc6 @(0-5) op=func descr="Primary 6-bit opcode field, bits 0-5"
 }
 
 :insn size=16 subfields={
-    AA16?a @(14) op=func # inline comment
+    AA16 @(14) op=func # inline comment
     # error_bitidx @(20) # should provide error because maximum bit index is 15 in this space
 }
 ```
@@ -420,8 +419,8 @@ Defines individual machine instructions, their mnemonics, operand fields, and ma
     rD @(6-10) op=target|reg.GPR
     rA @(11-15) op=source|reg.GPR
     rB @(16-20) op=source|reg.GPR
-    OE?o @(21) op=func
-    Rc?. @(31) op=func
+    OE @(21) op=func
+    Rc @(31) op=func
 }
 
 :insn add (rD,rA,rB) mask={opc6=0b011111 OE=0 @(22-30)=0b100001010 Rc=0} descr="Add"
