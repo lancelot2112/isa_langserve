@@ -13,7 +13,9 @@
       "Bash(node:*)",
       "Bash(touch:*)",
       "Bash(npm test:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(npx jest:*)"
     ],
     "deny": []
   }
