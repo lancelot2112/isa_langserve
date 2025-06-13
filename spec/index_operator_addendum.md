@@ -61,18 +61,18 @@ end_index         := numeric_literal
 ```
 
 #### Validation Rules
-1. `start_index` must be e 0
-2. `end_index` must be e `start_index`  
-3. `end_index - start_index + 1` must be d 65536 (reasonable upper limit)
+1. `start_index` must be â‰¥ 0
+2. `end_index` must be â‰¥ `start_index`  
+3. `end_index - start_index + 1` must be â‰¤ 65535 (to fit in 16-bit unsigned integer)
 4. Both indices must be valid numeric literals (decimal, hex, binary, octal)
 5. The bracket notation `[startindex-endindex]` is mutually exclusive with `count=` and `name=` attributes
 
 #### Field Name Generation
 - Generated field names follow the pattern: `<field_tag><index>`
 - Examples:
-  - `SPR[0-1023]` ’ `SPR0`, `SPR1`, `SPR2`, ..., `SPR1023`
-  - `GPR[0-31]` ’ `GPR0`, `GPR1`, `GPR2`, ..., `GPR31`
-  - `r[10-15]` ’ `r10`, `r11`, `r12`, `r13`, `r14`, `r15`
+  - `SPR[0-1023]` ï¿½ `SPR0`, `SPR1`, `SPR2`, ..., `SPR1023`
+  - `GPR[0-31]` ï¿½ `GPR0`, `GPR1`, `GPR2`, ..., `GPR31`
+  - `r[10-15]` ï¿½ `r10`, `r11`, `r12`, `r13`, `r14`, `r15`
 
 ## Specification Changes Required
 
@@ -88,7 +88,7 @@ end_index         := numeric_literal
 ```
 
 **ADD** new validation rule in Section 9.1.3:
-- **Index Range Validation**: When using bracket notation, `start_index` d `end_index`, both must be e 0, and the total count (`end_index - start_index + 1`) must be d 65536
+- **Index Range Validation**: When using bracket notation, `start_index` â‰¤ `end_index`, both must be â‰¥ 0, and the total count (`end_index - start_index + 1`) must be â‰¤ 65535
 - **Mutually Exclusive Attributes**: Bracket notation cannot be used with `count=` or `name=` attributes
 
 ### Section 5.1.4 Single Word Definition
@@ -162,11 +162,11 @@ Single Word: Can contain upper and lower case letters, numbers, hyphens, undersc
 ```typescript
 describe('Index Operator Tokenization', () => {
   test('should tokenize field_tag with bracket notation', () => {
-    // Test: "GPR[0-31]" ’ [IDENTIFIER("GPR"), LBRACKET, NUMBER(0), DASH, NUMBER(31), RBRACKET]
+    // Test: "GPR[0-31]" ï¿½ [IDENTIFIER("GPR"), LBRACKET, NUMBER(0), DASH, NUMBER(31), RBRACKET]
   });
   
   test('should handle hex indices in brackets', () => {
-    // Test: "MSR[0x0-0xF]" ’ tokens with hex number recognition
+    // Test: "MSR[0x0-0xF]" ï¿½ tokens with hex number recognition
   });
   
   test('should reject malformed bracket notation', () => {

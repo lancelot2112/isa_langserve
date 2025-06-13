@@ -1663,11 +1663,11 @@ export class SemanticAnalyzer {
       });
     }
     
-    // Validation rule: total count must be <= 65536 (reasonable upper limit)
+    // Validation rule: total count must be <= 65535 (to fit in 16-bit unsigned integer)
     const totalCount = endIndex - startIndex + 1;
-    if (totalCount > 65536) {
+    if (totalCount > 65535) {
       errors.push({
-        message: `Index range generates ${totalCount} fields, which exceeds the limit of 65536`,
+        message: `Index range generates ${totalCount} fields, which exceeds the limit of 65535`,
         location: this.ensureValidRange(node.location),
         severity: 'error',
         code: 'index-range-too-large',

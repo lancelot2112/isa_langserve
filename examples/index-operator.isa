@@ -56,6 +56,6 @@
 # These would be validation errors (commented out):
 # :reg INVALID[31-0] # Error: start_index > end_index
 # :reg INVALID2[-1-10] # Error: negative start_index
-# :reg INVALID3[0-65537] # Error: count exceeds maximum (65536)
+# :reg INVALID3[0-65536] # Error: count exceeds maximum (65535)
 # :reg INVALID4[0-31] count=32 # Error: bracket notation with count attribute
 # :reg INVALID5[0-31] name=r%d # Error: bracket notation with name attribute

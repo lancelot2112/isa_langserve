@@ -158,7 +158,7 @@ end_index         := numeric_literal
 **Validation Rules**:
 1. `start_index` must be ≥ 0
 2. `end_index` must be ≥ `start_index`  
-3. `end_index - start_index + 1` must be ≤ 65536 (reasonable upper limit)
+3. `end_index - start_index + 1` must be ≤ 65535 (to fit in 16-bit unsigned integer)
 4. Both indices must be valid numeric literals (decimal, hex, binary, octal)
 5. The bracket notation `[startindex-endindex]` is mutually exclusive with deprecated `count=` and `name=` attributes
 
@@ -276,7 +276,7 @@ or
 ```
 
 **New Field Options**:
-- **OPTIONAL** `[<start_index>-<end_index>]`: Index range for register arrays using bracket notation. Both indices must be valid numeric literals. `start_index` must be ≥ 0, `end_index` must be ≥ `start_index`, and the total count (`end_index - start_index + 1`) must be ≤ 65536.
+- **OPTIONAL** `[<start_index>-<end_index>]`: Index range for register arrays using bracket notation. Both indices must be valid numeric literals. `start_index` must be ≥ 0, `end_index` must be ≥ `start_index`, and the total count (`end_index - start_index + 1`) must be ≤ 65535.
 - **OPTIONAL** `offset=<numeric_literal>`: Base offset within the memory space. Must be valid numeric literal that fits within an address of the defined space. If not provided shall start just after the previously defined field. Offsets can overlap previously defined field ranges however a warning shall be provided.
 - **OPTIONAL** `size=<numeric_literal>`: Total size in bits. Must be > 0 and ≤ 512 bits. Must be valid numeric literal. Defaults to `word` size of the parent space.
 - **OPTIONAL** `reset=<numeric_literal>`: Reset value (default 0 if not provided). Must be valid numeric literal. Default = 0.
@@ -338,7 +338,7 @@ Each subfield definition shall occur within a `subfields={}` option tag context 
 
 - **Simple Types**: All simple types must have a valid format and value according to the simple type.
 - **Alias Mutual Exclusivity**: `alias` cannot be used with `offset`, `size`, or `reset`
-- **Index Range Validation**: When using bracket notation, `start_index` ≤ `end_index`, both must be ≥ 0, and the total count (`end_index - start_index + 1`) must be ≤ 65536
+- **Index Range Validation**: When using bracket notation, `start_index` ≤ `end_index`, both must be ≥ 0, and the total count (`end_index - start_index + 1`) must be ≤ 65535
 - **Mutually Exclusive Attributes**: Bracket notation cannot be used with deprecated `count=` or `name=` attributes
 - **Field Name Tracking**: Generated field_names (from bracket notation or field_tag if no bracket notation provided) are tracked for later alias validation or access.
 - **Size Limit**: `size` must be ≤ 512 bits and > 0 bits
