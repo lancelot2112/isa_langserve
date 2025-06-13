@@ -25,7 +25,7 @@ subfields={
     lsb @(32-63)
 }
 
-:reg ALIAS_FIELD alias=spr22;lsb`;
+:reg REDIRECT_FIELD redirect=spr22;lsb`;
 
     const document = TextDocument.create('test://field-subfield.isa', 'isa', 1, content);
     const result = analyzer.analyzeFile(document);
@@ -54,7 +54,7 @@ subfields={
     sub2 @(16-31)
 }
 
-:reg ALIAS_FIELD alias=nonexistent;sub1`;
+:reg REDIRECT_FIELD redirect=nonexistent;sub1`;
 
     const document = TextDocument.create('test://field-subfield-undefined.isa', 'isa', 1, content);
     const result = analyzer.analyzeFile(document);
@@ -76,7 +76,7 @@ subfields={
     sub2 @(16-31)
 }
 
-:reg ALIAS_FIELD alias=EXISTING_FIELD;nonexistent_sub`;
+:reg REDIRECT_FIELD redirect=EXISTING_FIELD;nonexistent_sub`;
 
     const document = TextDocument.create('test://field-subfield-undefined-sub.isa', 'isa', 1, content);
     const result = analyzer.analyzeFile(document);
@@ -120,7 +120,7 @@ subfields={
     lsb @(32-63)
 }
 
-:reg LEGACY_ALIAS alias=spr22.lsb`;
+:reg LEGACY_REDIRECT redirect=spr22.lsb`;
 
     const document = TextDocument.create('test://legacy-syntax.isa', 'isa', 1, content);
     const result = analyzer.analyzeFile(document);

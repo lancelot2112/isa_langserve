@@ -14,7 +14,10 @@
       "Bash(touch:*)",
       "Bash(npm test:*)",
       "Bash(rg:*)",
-      "Bash(git add:*)"
+      "Bash(find:*)",
+      "Bash(npx jest:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

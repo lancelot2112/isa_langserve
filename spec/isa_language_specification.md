@@ -60,7 +60,7 @@ Linting and coloring should both utilize a common tokenization scheme and avoid 
 
 #### 5.1.3 **Quoted Strings**: Values containing spaces or special characters should be enclosed in double quotes (e.g., `"User mode"`). Strings are highlighted (default: `orange`).
 
-#### 5.1.4 **Single Word**: Can contain upper and lower case letters, numbers, hyphens, underscores, periods.
+#### 5.1.4 **Single Word**: Can contain upper and lower case letters, numbers, hyphens, underscores, periods. When used as a field_tag, may include indexing notation [startindex-endindex] for defining register arrays.
 
 #### 5.1.5 **Bit Field**: Start with the `@` symbol and includes anything enclosed in the parenthesis just after `@(<bit_field>)`. For details see "Bit Specification Details".
 
@@ -77,7 +77,7 @@ Bit specifications are used in field definitions and instruction definitions. Th
 
 **Single Bit**:
 - `@(<bit_index>)`: A single bit.
-- Example: `AA?a @(30)` refers to bit 30.
+- Example: `AA @(30)` refers to bit 30.
 
 **Bit Range**:
 - `@(<start_bit>-<end_bit>)`: A contiguous range of bits, inclusive. `start_bit` is typically the more significant bit index.
@@ -147,6 +147,37 @@ space_reference   := '$' identifier
 - `$reg;spr22;lsb` - subfield `lsb` within field `spr22` within space `reg`
 
 **Tokenization**: The semicolon (`;`) is treated as a distinct operator token, allowing periods (`.`) to be used freely within identifier names without ambiguity.
+
+#### 5.2.5 Index Operator Grammar
+
+The index operator (`[startindex-endindex]`) provides syntax for defining register arrays:
+
+```
+indexed_field_tag := field_tag '[' start_index '-' end_index ']'
+field_tag         := single_word
+start_index       := numeric_literal  
+end_index         := numeric_literal
+```
+
+**Validation Rules**:
+1. `start_index` must be ≥ 0
+2. `end_index` must be ≥ `start_index`  
+3. `end_index - start_index + 1` must be ≤ 65535 (to fit in 16-bit unsigned integer)
+4. Both indices must be valid numeric literals (decimal, hex, binary, octal)
+5. The bracket notation `[startindex-endindex]` is mutually exclusive with deprecated `count=` and `name=` attributes
+
+**Field Name Generation**:
+- Generated field names follow the pattern: `<field_tag><index>`
+- Examples:
+  - `SPR[0-1023]` → `SPR0`, `SPR1`, `SPR2`, ..., `SPR1023`
+  - `GPR[0-31]` → `GPR0`, `GPR1`, `GPR2`, ..., `GPR31`
+  - `r[10-15]` → `r10`, `r11`, `r12`, `r13`, `r14`, `r15`
+
+**Operator Precedence and Scoping**:
+- Index operators are parsed as part of the field_tag token during tokenization
+- Index ranges are evaluated at parse time to generate the complete list of field names
+- Generated field names are available for alias references and space indirection
+- The bracket notation has higher precedence than any field attributes
  
 ## 6. Global Parameters (`:param`)
 
@@ -676,7 +707,7 @@ After defining a memory space, you can use the space name as a command to define
 
 ### 9.1 Field Definition (`:<space_tag> <field_tag>`)
 
-`field_tag` must be a `single_word` (e.g., `GPR`, `XER`, `CR`) and will be used as the `field_name` when `name` option is not provided. If `count` is provided and is >1 and the `name=` option is not provided then `field_name` shall be `<field_tag>%d` where the %d is replaced by the index of the field. `field_tag` needs to be colored the same as the encompassing `space_tag`.
+`field_tag` must be a `single_word` (e.g., `GPR`, `XER`, `CR`) and will be used as the `field_name`. For indexed fields using bracket notation, `field_name` shall be `<field_tag><index>` where the index ranges from startindex to endindex. `field_tag` needs to be colored the same as the encompassing `space_tag`.
 
 #### 9.1.1 Syntax Forms
 
@@ -684,26 +715,31 @@ There are several ways to define fields:
 
 **New Field Definition**:
 ```
-:<space_tag> <field_tag> [offset=<numeric_literal>] [size=<bits>] [count=<number>] [reset=<value>] [name=<format>] [descr="<description>"] [subfields={list of subfield definitions}]
+:<space_tag> <field_tag>[<start_index>-<end_index>] [offset=<numeric_literal>] [size=<bits>] [reset=<value>] [descr="<description>"] [subfields={list of subfield definitions}]
+```
+
+or
+
+```
+:<space_tag> <field_tag> [offset=<numeric_literal>] [size=<bits>] [reset=<value>] [descr="<description>"] [subfields={list of subfield definitions}]
 ```
 
 **New Field Options**:
+- **OPTIONAL** `[<start_index>-<end_index>]`: Index range for register arrays using bracket notation. Both indices must be valid numeric literals. `start_index` must be ≥ 0, `end_index` must be ≥ `start_index`, and the total count (`end_index - start_index + 1`) must be ≤ 65535.
 - **OPTIONAL** `offset=<numeric_literal>`: Base offset within the memory space. Must be valid numeric literal that fits within an address of the defined space. If not provided shall start just after the previously defined field. Offsets can overlap previously defined field ranges however a warning shall be provided.
 - **OPTIONAL** `size=<numeric_literal>`: Total size in bits. Must be > 0 and ≤ 512 bits. Must be valid numeric literal. Defaults to `word` size of the parent space.
-- **OPTIONAL (default=1)** `count=<numeric_literal>`: Number of registers in the file (for register arrays). Must be valid numeric literal >=1. Default = 1.
-- **OPTIONAL** `name=<format>`: Unquoted printf-style format for naming fields (e.g., `name=r%d` creates `r0`, `r1`, `r2`...) Creates a list of `field_name`s of the `field_tag` type offsetting each one from the `offset` by the `size` option times the index of the `field_name`. The `%d` is replaced with indices from 0 to count-1. `<format>` shall be colored the same as the encompassing `space_tag`.
 - **OPTIONAL** `reset=<numeric_literal>`: Reset value (default 0 if not provided). Must be valid numeric literal. Default = 0.
 - **OPTIONAL** `descr="<description>"`: Textual description.
 
-**Alias Definition**:
+**Redirect Definition**:
 ```
-:<space_tag> <field_tag> [alias=<context_reference>] [descr="<description>"] [subfields={list of subfield definitions}]
+:<space_tag> <field_tag> [redirect=<context_reference>] [descr="<description>"] [subfields={list of subfield definitions}]
 ```
 
-Aliases take on the offset and size of the other field_tag or subfield referenced in the alias option_tag.
+Redirects take on the offset and size of the other field_tag or subfield referenced in the redirect option_tag.
 
-**Alias Field Options**:
-- **REQUIRED** `alias=<context_reference>`: References a previously defined field using context operator syntax (e.g., `field;subfield` or `$space;field;subfield`). This creates a new `field_name` that maps to the same memory offset and bits.
+**Redirect Field Options**:
+- **REQUIRED** `redirect=<context_reference>`: References a previously defined field using context operator syntax (e.g., `field;subfield` or `$space;field;subfield`). This creates a new `field_name` that maps to the same memory offset and bits.
 - **OPTIONAL** `descr="<description>"`: Textual description.
 
 **Appending Subfield Definitions**:
@@ -728,11 +764,10 @@ Subfields defined in untagged fields do not have a memory space and can be refer
 
 Each subfield definition shall occur within a `subfields={}` option tag context window. Only one subfield definition shall be on a line and following the following format:
 
-**Syntax**: `<subfield_tag>[?<postfix>] @(<bit_spec>)[|<bit_spec>...] [op=<type>[.<subtype>][|<type>...]] [descr="<description>"]`
+**Syntax**: `<subfield_tag> @(<bit_spec>)[|<bit_spec>...] [op=<type>[.<subtype>][|<type>...]] [descr="<description>"]`
 
 **Subfield Components**:
 - **REQUIRED** `<subfield_tag>`: Unique name for the subfield (e.g., `AA`, `BD`, `rA`). `subfield_tag` shall be highlighted/colored the same as the encompassing `space_tag`.
-- **OPTIONAL** `?<postfix>`: Optional single-character postfix (e.g., `?a`, `?l`). If present, `op` often includes `func`. This postfix can be appended to the `field_name` or `instruction_name` during disassembly (e.g., `b` + `LK?l` -> `bl`) if bit is set. Anything with a postfix needs to be a single bit.  The postfix portion including the ? is not part of the `<subfield_tag>`.
 - **REQUIRED** `@(<bit_field>)`: Bit specification for the field within a field (see "Bit Specification Details" in Section 8).
   - Example: `DCRN @(16-20|11-15)` means bits 16-20 are concatenated with bits 11-15 to form the `DCRN` field.
 - **OPTIONAL** `op=<type>[.<subtype>][|<type>...]`: Defines the operational type and properties of the field. Multiple types can be OR'd using `|`.
@@ -750,10 +785,12 @@ Each subfield definition shall occur within a `subfields={}` option tag context 
 #### 9.1.3 Field Validation Rules
 
 - **Simple Types**: All simple types must have a valid format and value according to the simple type.
-- **Alias Mutual Exclusivity**: `alias` cannot be used with `offset`, `size`, `count`, `name`, or `reset`
-- **Field Name Tracking**: Generated field_names (from name or field_tag if no name provided) are tracked for later alias validation or access.
+- **Redirect Mutual Exclusivity**: `redirect` cannot be used with `offset` or `size` as it will take on the `size` and `offset` of the redirect 
+- **Index Range Validation**: When using bracket notation, `start_index` ≤ `end_index`, both must be ≥ 0, and the total count (`end_index - start_index + 1`) must be ≤ 65535
+- **Mutually Exclusive Attributes**: Bracket notation cannot be used with deprecated `count=` or `name=` attributes
+- **Field Name Tracking**: Generated field_names (from bracket notation or field_tag if no bracket notation provided) are tracked for later redirect validation or access.
 - **Size Limit**: `size` must be ≤ 512 bits and > 0 bits
-- **Range Validation**: The start and end offset shall be tracked to check for overlaps. Aliases can overlap without warning but new fields shall generate a warning if they overlap.
+- **Range Validation**: The start and end offset shall be tracked to check for overlaps. Redirects can overlap without warning but new fields shall generate a warning if they overlap.
 - **Bitfield Numbering**: Bit indices shall be in the range 0..size-1 of the field definition with 0 being the most significant bit and size-1 being the least significant.
 
 #### 9.1.4 Field Examples
@@ -764,13 +801,19 @@ Each subfield definition shall occur within a `subfields={}` option tag context 
 # Simple register definition
 :reg PC size=64 offset=0x0 reset=0x0
 
-# Register file with count and name
-:reg GPR offset=0x100 size=64 count=32 name=r%d reset=0
-# This creates: r0, r1, r2, ..., r31
+# Register file with bracket notation
+:reg GPR[0-31] offset=0x100 size=64 reset=0
+# This creates: GPR0, GPR1, GPR2, ..., GPR31
 
-# Register alias (mutually exclusive with other options except description)
-:reg SP alias=r1
-:reg SP2 alias=r2 descr="Special Purpose 2"
+# Index range starting from non-zero
+:reg SPR[256-511] offset=0x1000 size=32
+
+# Hex indices for special register ranges
+:reg MSR[0x0-0xF] offset=0x2000 size=64
+
+# Register redirect (mutually exclusive with other options except description)
+:reg SP redirect=GPR1
+:reg SP2 redirect=GPR2 descr="Special Purpose 2"
 
 # Declaring subfields
 :reg XER offset=0x200 size=32 reset=0x0 subfields={
@@ -783,14 +826,14 @@ Each subfield definition shall occur within a `subfields={}` option tag context 
 
 # Untagged subfield definitions for instructions
 :insn subfields={
-    AA?a @(30) op=func descr="Absolute Address flag, bit 30"
+    AA @(30) op=func descr="Absolute Address flag, bit 30"
     BD @(16-29|0b00) op=imm descr="Displacement, bits 16-29, padded with 00b"
     rA @(11-15) op=reg.GPR descr="Register A, bits 11-15, is a GPR"
     opc6 @(0-5) op=func descr="Primary 6-bit opcode field, bits 0-5"
 }
 
 :insn size=16 subfields={
-    AA16?a @(14) op=func # inline comment
+    AA16 @(14) op=func # inline comment
     # error_bitidx @(20) # should provide error because maximum bit index is 15 in this space
 }
 ```
@@ -856,8 +899,8 @@ When multiple instruction variants share the same mnemonic but use different for
     rD @(6-10) op=target|reg.GPR
     rA @(11-15) op=source|reg.GPR
     rB @(16-20) op=source|reg.GPR
-    OE?o @(21) op=func
-    Rc?. @(31) op=func
+    OE @(21) op=func
+    Rc @(31) op=func
 }
 
 :insn add (rD,rA,rB) mask={opc6=0b011111 OE=0 @(22-30)=0b100001010 Rc=0} descr="Add"

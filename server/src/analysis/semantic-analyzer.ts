@@ -18,6 +18,7 @@ import {
 import { ISASymbolTable } from './symbol-table';
 import { ISATokenizer } from '../parser/tokenizer';
 import { BitFieldParser } from '../parser/bit-field-parser';
+import { NumericParser } from '../utils/numeric-parser';
 
 export interface AnalysisResult {
   symbols: ISASymbolTable;
@@ -318,13 +319,36 @@ export class SemanticAnalyzer {
   }
 
   private parseFieldOrInstructionLine(line: string, lineNumber: number): FieldNode | InstructionNode | null {
-    // Parse: :<space_tag> <field_tag> [options...] or :<space_tag> <instruction_tag> (operands) [options...]
-    const match = line.match(/^:(\w+)\s+(\w+)(.*)$/);
+    // Parse: :<space_tag> <field_tag>[startindex-endindex] [options...] or :<space_tag> <instruction_tag> (operands) [options...]
+    const match = line.match(/^:(\w+)\s+(\w+(?:\[[-]?[0-9a-fA-FxXbBoO_]+-[-]?[0-9a-fA-FxXbBoO_]+\])?)(.*)$/);
     if (!match) return null;
     
     const spaceTag = match[1];
-    const tag = match[2];
+    const tagWithIndex = match[2];
     const rest = match[3]?.trim() || '';
+    
+    // Check if this is an indexed field tag
+    let tag = tagWithIndex;
+    let indexRange: { startIndex: number; endIndex: number; generatedNames?: string[] } | undefined;
+    
+    const indexMatch = tagWithIndex?.match(/^(\w+)\[([-]?[0-9a-fA-FxXbBoO_]+)-([-]?[0-9a-fA-FxXbBoO_]+)\]$/);
+    if (indexMatch && indexMatch[1] && indexMatch[2] && indexMatch[3]) {
+      tag = indexMatch[1];
+      const startIndexStr = indexMatch[2];
+      const endIndexStr = indexMatch[3];
+      
+      // Parse numeric literals (handle negative numbers)
+      const startIndex = this.parseIndexValue(startIndexStr);
+      const endIndex = this.parseIndexValue(endIndexStr);
+      
+      if (startIndex !== null && endIndex !== null) {
+        indexRange = {
+          startIndex,
+          endIndex,
+          generatedNames: this.generateIndexedFieldNames(tag, startIndex, endIndex)
+        };
+      }
+    }
     
     const location = {
       start: { line: lineNumber, character: 0 },
@@ -362,12 +386,13 @@ export class SemanticAnalyzer {
         subfields: [], // Parse subfields if present
         location,
         text: line,
+        ...(indexRange && { indexRange }), // Add index range if present
       };
       
       // Parse field options from rest of line
       const options = this.parseFieldOptions(rest);
-      if (options.alias) {
-        fieldNode.alias = options.alias;
+      if (options.redirect) {
+        fieldNode.alias = options.redirect;
       }
       if (options.count !== undefined) {
         fieldNode.count = options.count;
@@ -386,7 +411,7 @@ export class SemanticAnalyzer {
   }
   
   private parseFieldOptions(optionsStr: string): {
-    alias?: string;
+    redirect?: string;
     count?: number;
     name?: string;
     [key: string]: any;
@@ -867,7 +892,7 @@ export class SemanticAnalyzer {
   }
 
   private isInvalidFieldOption(text: string): boolean {
-    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'alias'];
+    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'redirect'];
     return !validFieldOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 
@@ -904,14 +929,14 @@ export class SemanticAnalyzer {
       });
     }
     
-    // Validate alias references
+    // Validate redirect references
     if (node.alias) {
       // Breaking change: only support context operator (;) syntax
       if (node.alias.includes('.') && !node.alias.includes(';')) {
         const [fieldName, subfieldName] = node.alias.split('.');
         if (fieldName && subfieldName) {
           errors.push({
-            message: `Invalid alias syntax: '${node.alias}'. Use context operator syntax: '${fieldName};${subfieldName}'`,
+            message: `Invalid redirect syntax: '${node.alias}'. Use context operator syntax: '${fieldName};${subfieldName}'`,
             location: this.ensureValidRange(node.location),
             severity: 'error',
             code: 'invalid-syntax',
@@ -920,22 +945,22 @@ export class SemanticAnalyzer {
         }
       }
       
-      const aliasParts = node.alias.split(';');
-      const aliasName = aliasParts[0];
-      const subfieldName = aliasParts[1];
+      const redirectParts = node.alias.split(';');
+      const redirectName = redirectParts[0];
+      const subfieldName = redirectParts[1];
       
-      if (aliasName) {
+      if (redirectName) {
         // Check if base field exists
-        const baseField = this.symbolTable.findSymbol(aliasName, node.spaceTag);
+        const baseField = this.symbolTable.findSymbol(redirectName, node.spaceTag);
         if (!baseField) {
           // Check for array field references like spr1024 when max is spr1023
-          if (this.isArrayFieldReference(aliasName, node.spaceTag)) {
-            const fieldArrayInfo = this.getFieldArrayInfo(aliasName, node.spaceTag);
+          if (this.isArrayFieldReference(redirectName, node.spaceTag)) {
+            const fieldArrayInfo = this.getFieldArrayInfo(redirectName, node.spaceTag);
             if (fieldArrayInfo) {
-              const index = this.extractArrayIndex(aliasName, fieldArrayInfo.baseName);
+              const index = this.extractArrayIndex(redirectName, fieldArrayInfo.baseName);
               if (index !== null && index >= fieldArrayInfo.count) {
                 errors.push({
-                  message: `Undefined field reference: '${aliasName}'. Array '${fieldArrayInfo.baseName}' has count=${fieldArrayInfo.count}, valid range is ${fieldArrayInfo.baseName}0 to ${fieldArrayInfo.baseName}${fieldArrayInfo.count - 1}`,
+                  message: `Undefined field reference: '${redirectName}'. Array '${fieldArrayInfo.baseName}' has count=${fieldArrayInfo.count}, valid range is ${fieldArrayInfo.baseName}0 to ${fieldArrayInfo.baseName}${fieldArrayInfo.count - 1}`,
                   location: this.ensureValidRange(node.location),
                   severity: 'error',
                   code: 'undefined-field-reference',
@@ -944,22 +969,22 @@ export class SemanticAnalyzer {
             }
           } else {
             errors.push({
-              message: `Undefined field in alias: ${aliasName}`,
+              message: `Undefined field in redirect: ${redirectName}`,
               location: this.ensureValidRange(node.location),
               severity: 'error',
-              code: 'undefined-alias',
+              code: 'undefined-redirect',
             });
           }
         }
         
         // Check subfield reference if provided
         if (subfieldName && baseField) {
-          const subfieldExists = this.symbolTable.findSubfieldInField(aliasName, subfieldName, node.spaceTag);
+          const subfieldExists = this.symbolTable.findSubfieldInField(redirectName, subfieldName, node.spaceTag);
           if (!subfieldExists) {
             // Calculate more precise location for the subfield part
             const subfieldLocation = this.calculateSubfieldLocation(node, node.alias!);
             errors.push({
-              message: `Undefined subfield '${subfieldName}' in field '${aliasName}'`,
+              message: `Undefined subfield '${subfieldName}' in field '${redirectName}'`,
               location: this.ensureValidRange(subfieldLocation || node.location),
               severity: 'error',
               code: 'undefined-subfield',
@@ -967,6 +992,21 @@ export class SemanticAnalyzer {
           }
         }
       }
+    }
+    
+    // Validate index operator if present
+    if (node.indexRange) {
+      errors.push(...this.validateIndexRange(node));
+    }
+    
+    // Validate mutually exclusive attributes (index range vs count/name)
+    if (node.indexRange && (node.count || node.name)) {
+      errors.push({
+        message: 'Index range syntax [startindex-endindex] cannot be used with count= or name= attributes',
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'mutually-exclusive-attributes',
+      });
     }
     
     // Validate bit fields in subfields
@@ -1227,7 +1267,7 @@ export class SemanticAnalyzer {
   private isCommonKeyword(text: string): boolean {
     const keywords = [
       'ro', 'rw', 'memio', 'register', 'subfields', 'mask', 'offset', 'size', 
-      'count', 'name', 'descr', 'alias', 'addr', 'word', 'type', 'align', 
+      'count', 'name', 'descr', 'redirect', 'addr', 'word', 'type', 'align', 
       'endian', 'big', 'little', 'op', 'r', 'd', 'ranges', 'prio', 'buslen',
       'rc', 'oe', 'ra', 'rb', 'rd', 'pmrn' // Common ISA field names
     ];
@@ -1525,14 +1565,14 @@ export class SemanticAnalyzer {
       return null;
     }
 
-    // Find the "alias=" text in the node's text
-    const aliasStart = node.text.indexOf('alias=');
-    if (aliasStart === -1) {
+    // Find the "redirect=" text in the node's text
+    const redirectStart = node.text.indexOf('redirect=');
+    if (redirectStart === -1) {
       return null;
     }
 
-    // Find the start of the alias value
-    const aliasValueStart = aliasStart + 'alias='.length;
+    // Find the start of the redirect value
+    const redirectValueStart = redirectStart + 'redirect='.length;
     
     // Find the semicolon that separates field from subfield
     const separatorIndex = aliasValue.indexOf(';');
@@ -1541,12 +1581,12 @@ export class SemanticAnalyzer {
     }
 
     // Calculate the character positions for the subfield part (including the separator)
-    const subfieldStartInAlias = separatorIndex; // Start at the separator
-    const subfieldEndInAlias = aliasValue.length; // End at the end of alias value
+    const subfieldStartInRedirect = separatorIndex; // Start at the separator
+    const subfieldEndInRedirect = aliasValue.length; // End at the end of redirect value
     
     // Calculate absolute positions within the line
-    const subfieldStartChar = node.location.start.character + aliasValueStart + subfieldStartInAlias;
-    const subfieldEndChar = node.location.start.character + aliasValueStart + subfieldEndInAlias;
+    const subfieldStartChar = node.location.start.character + redirectValueStart + subfieldStartInRedirect;
+    const subfieldEndChar = node.location.start.character + redirectValueStart + subfieldEndInRedirect;
 
     return {
       start: { line: node.location.start.line, character: subfieldStartChar },
@@ -1556,5 +1596,84 @@ export class SemanticAnalyzer {
         end: { line: node.location.start.line, character: subfieldEndChar }
       }
     };
+  }
+
+  /**
+   * Parse a numeric literal (decimal, hex, binary, octal)
+   */
+  private parseNumericLiteral(text: string): number | null {
+    const literal = NumericParser.parseNumericLiteral(text);
+    return literal ? literal.value : null;
+  }
+
+  /**
+   * Parse an index value (supporting negative numbers)
+   */
+  private parseIndexValue(text: string): number | null {
+    const trimmed = text.trim();
+    
+    // Handle negative numbers
+    if (trimmed.startsWith('-')) {
+      const absoluteValue = this.parseNumericLiteral(trimmed.slice(1));
+      return absoluteValue !== null ? -absoluteValue : null;
+    }
+    
+    // Handle positive numbers
+    return this.parseNumericLiteral(trimmed);
+  }
+
+  /**
+   * Generate indexed field names from a range
+   */
+  private generateIndexedFieldNames(baseTag: string, startIndex: number, endIndex: number): string[] {
+    const names: string[] = [];
+    for (let i = startIndex; i <= endIndex; i++) {
+      names.push(`${baseTag}${i}`);
+    }
+    return names;
+  }
+
+  /**
+   * Validate index range syntax and constraints
+   */
+  private validateIndexRange(node: FieldNode): ValidationError[] {
+    const errors: ValidationError[] = [];
+    
+    if (!node.indexRange) return errors;
+    
+    const { startIndex, endIndex } = node.indexRange;
+    
+    // Validation rule: startIndex must be >= 0
+    if (startIndex < 0) {
+      errors.push({
+        message: `Index range start index must be >= 0, got ${startIndex}`,
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'invalid-index-range',
+      });
+    }
+    
+    // Validation rule: endIndex must be >= startIndex  
+    if (endIndex < startIndex) {
+      errors.push({
+        message: `Index range end index (${endIndex}) must be >= start index (${startIndex})`,
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'invalid-index-range',
+      });
+    }
+    
+    // Validation rule: total count must be <= 65535 (to fit in 16-bit unsigned integer)
+    const totalCount = endIndex - startIndex + 1;
+    if (totalCount > 65535) {
+      errors.push({
+        message: `Index range generates ${totalCount} fields, which exceeds the limit of 65535`,
+        location: this.ensureValidRange(node.location),
+        severity: 'error',
+        code: 'index-range-too-large',
+      });
+    }
+    
+    return errors;
   }
 }

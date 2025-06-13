@@ -16,7 +16,7 @@ describe('Subfields Parsing', () => {
   test('parses standalone subfields block correctly', () => {
     const content = `:space reg addr=0x20 word=64 type=register
 
-:reg XOM alias=r4
+:reg XOM redirect=r4
 subfields={
     OV @(0-4) descr="Overflow Flag"
     EXCEPT @(5-9) descr="Exception Flag"
@@ -97,7 +97,7 @@ subfields={
   test('both inline and standalone subfields work in same file', () => {
     const content = `:space reg addr=0x20 word=64 type=register
 
-:reg XOM alias=r4
+:reg XOM redirect=r4
 subfields={
     OV @(0-4) descr="Overflow Flag"
     EXCEPT @(5-9) descr="Exception Flag"

@@ -15,8 +15,8 @@
     Reserved @(3-31) descr="Reserved bits"
 }
 
-# Field alias
-:reg SP alias=r1 descr="Stack Pointer"
+# Field redirect
+:reg SP redirect=r1 descr="Stack Pointer"
 
 # Instruction space definitions
 :insn size=32 subfields={

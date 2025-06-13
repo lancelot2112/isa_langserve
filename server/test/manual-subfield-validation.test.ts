@@ -1,15 +1,15 @@
 /**
- * Test for subfield alias validation fix
+ * Test for subfield redirect validation fix
  * 
  * Tests the enhanced subfield validation logic that properly checks
- * if a subfield exists within the specific parent field being aliased.
+ * if a subfield exists within the specific parent field being redirected.
  */
 
 import { SemanticAnalyzer } from '../src/analysis/semantic-analyzer';
 import { ISASymbolTable } from '../src/analysis/symbol-table';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-describe('Subfield Alias Validation Fix', () => {
+describe('Subfield Redirect Validation Fix', () => {
   let analyzer: SemanticAnalyzer;
   let symbolTable: ISASymbolTable;
 
@@ -83,7 +83,7 @@ describe('Subfield Alias Validation Fix', () => {
     // This test verifies the integration works correctly by directly calling the validation
     const content = `:space reg addr=32 word=64 type=register
 :reg TEST_FIELD size=64
-:reg ALIAS_FIELD alias=TEST_FIELD;lsb`;
+:reg REDIRECT_FIELD redirect=TEST_FIELD;lsb`;
 
     // Since parsing multi-line subfields is the real issue, this test shows that
     // when subfields ARE properly attached, my validation fix works correctly

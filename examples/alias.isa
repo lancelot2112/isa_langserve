@@ -5,31 +5,30 @@
 #`other` should have a different color assigned
 :space other addr=32 word=32 type=ro
 
-#First define the entire SPR space
-:reg SPR offset=0x1000 size=64 count=1024 name=spr%d
-subfields={
+#First define the entire SPR space using new bracket notation
+:reg SPR[0-1023] offset=0x1000 size=64 subfields={
     msb @(0-31)
     lsb @(32-63)
 }
 
 #VALID CASES
-# can alias the named spr9 (from spr%d)
-# symbol reference `spr9` should be colored the same as `spr%d` and `reg`
-:reg CTR alias=spr9
+# can redirect the generated SPR9 (from SPR[0-1023])
+# symbol reference `SPR9` should be colored the same as `SPR` and `reg`
+:reg CTR redirect=SPR9
 
-# can alias a subfield of spr22 (from spr%d)
-# symbol references spr22 and lsb should have the same coloring as `spr%d` and `reg`
-# the semicolon inside spr22;lsb should be highlighted as context operator
-:reg DEC alias=spr22;lsb
+# can redirect a subfield of SPR22 (from SPR[0-1023])
+# symbol references SPR22 and lsb should have the same coloring as `SPR` and `reg`
+# the semicolon inside SPR22;lsb should be highlighted as context operator
+:reg DEC redirect=SPR22;lsb
 
 # ERROR CASES
-# Should indicate field name is not available (only 1024 count which maxes at spr1023)
-# Only spr1024 should be underlined and it shouldn't have a color
-:reg NAME_NOT_DEFINED alias=spr1024
+# Should indicate field name is not available (only range 0-1023 which maxes at SPR1023)
+# Only SPR1024 should be underlined and it shouldn't have a color
+:reg NAME_NOT_DEFINED redirect=SPR1024
 
 # Should indicate subfield not available
-# Only ;NDF should be underlined and it shouldn't be colored (spr22 should still be colored)
-:reg SUBFIELD_NOT_DEFINED alias=spr22;NDF
+# Only ;NDF should be underlined and it shouldn't be colored (SPR22 should still be colored)
+:reg SUBFIELD_NOT_DEFINED redirect=SPR22;NDF
 
 :other size=16 subfields={
     AA @(15) descr="Addressing mode (0=Relative, 1=Absolute)"
@@ -43,8 +42,8 @@ subfields={
 
 #this instruction is 32 bit (default space size) but is using size 16 fields, should be valid
 #since 32 > 16.  NOTE: the name tag includes a . which should be valid
-# Accessing spr22;lsb validly by first referencing the space using the $<spacetag> context operator
-:other 32bitinsn. (overlap,AA) mask={opcd5=0b111 @(31)=1 $reg;spr22;lsb=1}
+# Accessing SPR22;lsb validly by first referencing the space using the $<spacetag> context operator
+:other 32bitinsn. (overlap,AA) mask={opcd5=0b111 @(31)=1 $reg;SPR22;lsb=1}
 
 #INVALID
 # ERR1 uses a field that's not defined in our space 'not_def' should be underlined.
@@ -52,6 +51,6 @@ subfields={
 #bits!  the number should have a warning indicating there are more bits defined than the field has available.
 # ERR3 AA is checked against 0b5 which is an invalid binary number.  0b5 should be underlined.
 # ERR4 tries to reference a field name not defined in this space.  Needs to access that register
-# by first naming the space then referencing the field `$reg;spr22;lsb
+# by first naming the space then referencing the field `$reg;SPR22;lsb
 
-:other invinsn (not_def,AA) mask={opcd5=0b1111111 AA=0b5 spr22;lsb=1}
+:other invinsn (not_def,AA) mask={opcd5=0b1111111 AA=0b5 SPR22;lsb=1}

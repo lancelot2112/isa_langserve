@@ -7,5 +7,5 @@
     NEWOV @(31) descr="Overflow Flag for MPC5777C proc"
 }
 
-#Add an alias of an external field
-:reg NEWALIAS alias=r1
+#Add a redirect of an external field
+:reg NEWALIAS redirect=r1
