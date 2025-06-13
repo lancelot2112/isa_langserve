@@ -34,8 +34,8 @@ subfields={
     rD @(6-10) op=reg;GPR
 
     #example of a single character tag
-    OE?o @(21) op=func
-    Rc?. @(31) op=func
+    OE @(21) op=func
+    Rc @(31) op=func
 
     # A more complicated bit field definition
     pmrn @(?1||16-20||11-15||0b00)
