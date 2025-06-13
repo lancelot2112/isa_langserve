@@ -282,8 +282,22 @@ export class ISASymbolTable implements SymbolTable {
     
     this.addSymbol(symbol);
     
-    // If this field has a count > 1 and a name pattern, create the individual field symbols
-    if (node.count && node.count > 1 && node.name && node.name.includes('%d')) {
+    // If this field has an index range, create the individual field symbols
+    if (node.indexRange && node.indexRange.generatedNames) {
+      for (const fieldName of node.indexRange.generatedNames) {
+        const indexedFieldSymbol: Symbol = {
+          name: fieldName,
+          type: 'field',
+          location: node.location,
+          fileUri,
+          spaceTag: node.spaceTag,
+          definition: node, // Point to the original indexed definition
+        };
+        this.addSymbol(indexedFieldSymbol);
+      }
+    }
+    // Legacy support: If this field has a count > 1 and a name pattern, create the individual field symbols
+    else if (node.count && node.count > 1 && node.name && node.name.includes('%d')) {
       for (let i = 0; i < node.count; i++) {
         // Strip quotes from the name pattern if present
         const namePattern = node.name.replace(/^["']|["']$/g, '');
