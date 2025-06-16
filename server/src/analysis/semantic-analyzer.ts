@@ -713,10 +713,11 @@ export class SemanticAnalyzer {
           }
           
           // Field option validation (for field definitions like :reg, :insn fieldname options...)
-          // Skip if this is an instruction operand (appears after parentheses)
+          // Skip if this is an instruction operand (appears after parentheses) or inside mask blocks
           const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
           const isInstructionOperand = recentContent.includes('(') && recentContent.includes(')');
-          if (fieldDirectivePattern.test(recentContent) && !isInstructionOperand && this.isInvalidFieldOption(token.text)) {
+          const inMaskContext = this.isTokenInMaskContext(recentContent);
+          if (fieldDirectivePattern.test(recentContent) && !isInstructionOperand && !inMaskContext && this.isInvalidFieldOption(token.text)) {
             errors.push({
               message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, redirect`,
               location: this.ensureValidRange(token.location),
@@ -749,8 +750,8 @@ export class SemanticAnalyzer {
           // Instruction option validation (for instruction definitions with options like mask=)
           // Only validate instruction options outside of mask={} and other nested contexts
           const instructionPattern = /:(\w+)\s+\w+\s*\([^)]*\)\s/;
-          const inMaskContext = recentContent.includes('mask={') && !recentContent.includes('}');
-          if (instructionPattern.test(recentContent) && !inMaskContext && this.isInvalidInstructionOption(token.text)) {
+          const inMaskContextForInstruction = this.isTokenInMaskContext(recentContent);
+          if (instructionPattern.test(recentContent) && !inMaskContextForInstruction && this.isInvalidInstructionOption(token.text)) {
             errors.push({
               message: `Invalid instruction option: '${token.text}'. Valid options are: mask, descr, semantics`,
               location: this.ensureValidRange(token.location),
@@ -882,9 +883,19 @@ export class SemanticAnalyzer {
   }
 
   private getRecentTokenContext(tokens: Token[], currentToken: Token): string {
-    // Get context from recent tokens (simplified implementation)
+    // Get context from recent tokens, extending window for instruction lines
     const currentIndex = tokens.indexOf(currentToken);
-    const recentTokens = tokens.slice(Math.max(0, currentIndex - 10), currentIndex);
+    
+    // For instruction lines, we need a larger context window to capture the full line
+    // Look back further to find the start of the line (directive starting with :)
+    let startIndex = currentIndex - 1;
+    while (startIndex >= 0 && tokens[startIndex] && !tokens[startIndex]?.text.startsWith(':')) {
+      startIndex--;
+      // Safety limit to prevent infinite loops
+      if (currentIndex - startIndex > 50) break;
+    }
+    
+    const recentTokens = tokens.slice(Math.max(0, startIndex), currentIndex);
     return recentTokens.map(t => t.text).join(' ');
   }
 
@@ -916,6 +927,29 @@ export class SemanticAnalyzer {
   private isInvalidRangeOption(text: string): boolean {
     const validRangeOptions = ['prio', 'offset', 'buslen'];
     return !validRangeOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
+  }
+
+  private isTokenInMaskContext(recentContent: string): boolean {
+    // More robust detection of mask context
+    // Count open and close braces after 'mask=' to determine if we're inside
+    const maskIndex = recentContent.lastIndexOf('mask=');
+    if (maskIndex === -1) return false;
+    
+    const afterMask = recentContent.substring(maskIndex);
+    let braceCount = 0;
+    let foundOpenBrace = false;
+    
+    for (let i = 0; i < afterMask.length; i++) {
+      if (afterMask[i] === '{') {
+        braceCount++;
+        foundOpenBrace = true;
+      } else if (afterMask[i] === '}') {
+        braceCount--;
+      }
+    }
+    
+    // We're in mask context if we found an opening brace and braces are still open
+    return foundOpenBrace && braceCount > 0;
   }
 
   private validateFieldNode(node: FieldNode): ValidationError[] {
