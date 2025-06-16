@@ -713,11 +713,12 @@ export class SemanticAnalyzer {
           }
           
           // Field option validation (for field definitions like :reg, :insn fieldname options...)
-          // Skip if this is an instruction operand (appears after parentheses) or inside mask blocks
+          // Skip if this is an instruction operand (appears after parentheses), inside mask blocks, or inside subfields
           const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
-          const isInstructionOperand = recentContent.includes('(') && recentContent.includes(')');
+          const isInInstructionOperandList = this.isTokenInInstructionOperandList(recentContent);
           const inMaskContext = this.isTokenInMaskContext(recentContent);
-          if (fieldDirectivePattern.test(recentContent) && !isInstructionOperand && !inMaskContext && this.isInvalidFieldOption(token.text)) {
+          const inSubfieldsContext = this.isTokenInSubfieldsContext(recentContent);
+          if (fieldDirectivePattern.test(recentContent) && !isInInstructionOperandList && !inMaskContext && !inSubfieldsContext && this.isInvalidFieldOption(token.text)) {
             errors.push({
               message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, redirect`,
               location: this.ensureValidRange(token.location),
@@ -736,9 +737,10 @@ export class SemanticAnalyzer {
             });
           }
           
-          // Subfield option validation (within subfields={})
-          const inSubfieldsContext = recentContent.includes('subfields={') && !recentContent.includes('}');
-          if (inSubfieldsContext && this.isInvalidSubfieldOption(token.text)) {
+          // Subfield option validation (within subfields={} and after a bit field specification)
+          const inSubfieldsContextForSubfieldValidation = this.isTokenInSubfieldsContext(recentContent);
+          const isSubfieldOption = inSubfieldsContextForSubfieldValidation && this.isTokenAfterBitFieldInSubfields(recentContent);
+          if (isSubfieldOption && this.isInvalidSubfieldOption(token.text)) {
             errors.push({
               message: `Invalid subfield option: '${token.text}'. Valid options are: op, descr`,
               location: this.ensureValidRange(token.location),
@@ -751,9 +753,10 @@ export class SemanticAnalyzer {
           // Only validate instruction options outside of mask={} and other nested contexts
           const instructionPattern = /:(\w+)\s+\w+\s*\([^)]*\)\s/;
           const inMaskContextForInstruction = this.isTokenInMaskContext(recentContent);
-          if (instructionPattern.test(recentContent) && !inMaskContextForInstruction && this.isInvalidInstructionOption(token.text)) {
+          const isInInstructionOperandListForInstruction = this.isTokenInInstructionOperandList(recentContent);
+          if (instructionPattern.test(recentContent) && !inMaskContextForInstruction && !isInInstructionOperandListForInstruction && this.isInvalidInstructionOption(token.text)) {
             errors.push({
-              message: `Invalid instruction option: '${token.text}'. Valid options are: mask, descr, semantics`,
+              message: `Invalid instruction option: '${token.text}'. Valid options are: mask, descr, semantics, size`,
               location: this.ensureValidRange(token.location),
               severity: 'warning',
               code: 'invalid-instruction-option',
@@ -920,7 +923,7 @@ export class SemanticAnalyzer {
   }
 
   private isInvalidInstructionOption(text: string): boolean {
-    const validInstructionOptions = ['mask', 'descr', 'semantics'];
+    const validInstructionOptions = ['mask', 'descr', 'semantics', 'size'];
     return !validInstructionOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 
@@ -931,25 +934,89 @@ export class SemanticAnalyzer {
 
   private isTokenInMaskContext(recentContent: string): boolean {
     // More robust detection of mask context
-    // Count open and close braces after 'mask=' to determine if we're inside
-    const maskIndex = recentContent.lastIndexOf('mask=');
-    if (maskIndex === -1) return false;
+    // Look for 'mask' followed by '=' and '{' (allowing spaces between)
+    // Pattern: mask\s*=\s*{
+    const maskPattern = /mask\s*=\s*\{/;
+    const maskMatch = maskPattern.exec(recentContent);
+    if (!maskMatch) return false;
     
-    const afterMask = recentContent.substring(maskIndex);
-    let braceCount = 0;
-    let foundOpenBrace = false;
+    // Count braces from the mask location to determine if we're inside
+    const afterMask = recentContent.substring(maskMatch.index + maskMatch[0].length);
+    let braceCount = 1; // We found the opening brace
     
     for (let i = 0; i < afterMask.length; i++) {
       if (afterMask[i] === '{') {
         braceCount++;
-        foundOpenBrace = true;
       } else if (afterMask[i] === '}') {
         braceCount--;
       }
     }
     
-    // We're in mask context if we found an opening brace and braces are still open
-    return foundOpenBrace && braceCount > 0;
+    // We're in mask context if braces are still open
+    return braceCount > 0;
+  }
+
+  private isTokenInInstructionOperandList(recentContent: string): boolean {
+    // Check if we're inside an instruction operand list (between parentheses)
+    // Look for pattern: :space_tag instruction_name ( ... where we haven't reached the closing )
+    const instructionWithOperandPattern = /:(\w+)\s+(\w+[.]?)\s*\(/;
+    const match = instructionWithOperandPattern.exec(recentContent);
+    if (!match) return false;
+    
+    // Count parentheses from the operand list start
+    const afterOpenParen = recentContent.substring(match.index + match[0].length);
+    let parenCount = 1; // We found the opening parenthesis
+    
+    for (let i = 0; i < afterOpenParen.length; i++) {
+      if (afterOpenParen[i] === '(') {
+        parenCount++;
+      } else if (afterOpenParen[i] === ')') {
+        parenCount--;
+      }
+    }
+    
+    // We're in operand list context if parentheses are still open
+    return parenCount > 0;
+  }
+
+  private isTokenInSubfieldsContext(recentContent: string): boolean {
+    // Check if we're inside a subfields context
+    // Look for 'subfields' followed by '=' and '{' (allowing spaces between)
+    const subfieldsPattern = /subfields\s*=\s*\{/;
+    const subfieldsMatch = subfieldsPattern.exec(recentContent);
+    if (!subfieldsMatch) return false;
+    
+    // Count braces from the subfields location to determine if we're inside
+    const afterSubfields = recentContent.substring(subfieldsMatch.index + subfieldsMatch[0].length);
+    let braceCount = 1; // We found the opening brace
+    
+    for (let i = 0; i < afterSubfields.length; i++) {
+      if (afterSubfields[i] === '{') {
+        braceCount++;
+      } else if (afterSubfields[i] === '}') {
+        braceCount--;
+      }
+    }
+    
+    // We're in subfields context if braces are still open
+    return braceCount > 0;
+  }
+
+  private isTokenAfterBitFieldInSubfields(recentContent: string): boolean {
+    // Check if this token appears after a bit field specification in subfields
+    // We want to validate tokens that appear as: subfield_name @(...) TOKEN
+    // The recent content should contain @(...) before this token
+    const bitFieldPattern = /@\([^)]+\)/;
+    const hasBitField = bitFieldPattern.test(recentContent);
+    
+    if (!hasBitField) return false;
+    
+    // Also check that this token doesn't appear at the start of a new subfield line
+    // If the recent content ends with whitespace or newline-like pattern, this might be a new subfield tag
+    const endsWithWhitespace = /\s+$/.test(recentContent);
+    
+    // If we have a bit field and don't end with whitespace, we're likely after a bit field
+    return hasBitField && !endsWithWhitespace;
   }
 
   private validateFieldNode(node: FieldNode): ValidationError[] {
