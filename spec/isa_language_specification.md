@@ -671,35 +671,113 @@ Assembly: "lwz r0, 0(r3)"
 
 Addressing within a memory space typically always starts at 0x0 and ends at the size of the space. However this leads to overlaps between spaces. The bus allows setup of `bus address ranges` which point to different memory spaces.
 
+### 8.1 Bus Range Specification
+
 - **Syntax**: `:bus <bus_tag> addr=<bits> ranges={ range definitions }`
 - **Options**:
   - `bus_tag`: Defines the tag to access the bus by name, must be a **single_word**
   - `addr=<bits>`: Defines address size, must be a valid **numeric_literal**
   - `ranges={ range definitions }`: Defines a series of addresses mapping a named `<space_tag>`
 
-- **Range Definitions**:
-  - List of `[<bus_address>]->[<space_tag>] [prio=<numeric_literal>] [offset=<numeric_literal>] [buslen=<numeric_literal>]` definitions on separate lines
-  - **REQUIRED** `bus_address` must be a valid **numeric_literal** and within the defined address size of the bus
-  - **REQUIRED** `space_tag` must be a previously defined `space_tag`. Each tag should be colored per the previously assigned `space_tag` color
-  - **OPTIONAL** `prio=<numeric_literal>`: must be a valid numeric_literal and defines relative priority on any overlapping ranges. A larger lower priority ranges could have holes punched in it with higher priority ranges taking over specific sub ranges
-  - **OPTIONAL** `offset=<numeric_literal>`: must be a valid numeric_literal and defines the starting offset inside the space for this bus definition. If not provided will default to 0
-  - **OPTIONAL** `buslen=<numeric_literal>`: must be a valid numeric_literal and defines the mapped range of the space on the bus address space
+### 8.2 Range Definition Syntax
 
-- **Example**:
-  ```plaintext
-  :space small_flash addr=32 word=32 type=ro align=12 endian=big
-  :space large_flash addr=32 word=32 type=ro align=12 endian=big
-  :space ram addr=32 word=32 type=rw align=16 endian=big
-  :space etpu addr=16 word=24 type=memio align=16 endian=big
+**Syntax**: `<space_tag>[;<device_offset>] <bus_range> [prio=<priority>] [redirect=<addr>] [descr="<description>"] [device=<device_tag>]`
 
-  :bus sysbus addr=32 ranges={
-      0x0->small_flash buslen=0x40000
-      0x800000->large_flash buslen=0x800000
-      0x40000000->ram buslen=0x80000
-      0x40000400->small_flash buslen=0x400 offset=0x1080 prio=1 # flash image in ram space
-      0xC3F80000->etpu buslen=0x10000
-  }
-  ```
+**Bus Range Formats**:
+The `<bus_range>` can be specified in two formats:
+1. **Range Format**: `<start>--<end>` - Specifies explicit start and end addresses
+2. **Size Format**: `<start>_<size>` - Specifies start address and size
+
+**Required Attributes**:
+- **`space_tag`**: References a previously defined memory space from which alignment, address size, word size, and endianness are inherited. Each tag should be colored per the previously assigned `space_tag` color
+- **`bus_range`**: Defines the address range on the bus (using either `--` or `_` format)
+
+**Optional Attributes**:
+- **`device_offset`**: Specifies the starting offset within the target space (follows `;` after space_tag)
+- **`prio=<priority>`**: Numeric priority for overlapping ranges (higher values take precedence). Must be a valid **numeric_literal**
+- **`redirect=<addr>`**: Redirection address for address translation/forwarding. Must be a valid **numeric_literal**
+- **`descr="<description>"`**: Human-readable description of the bus range
+- **`device=<device_tag>`**: Optional device tag reference (for future use)
+
+### 8.3 Address Translation Flow
+
+```
+Bus Address → Space Selection → Device Offset → Final Address
+```
+
+**Example**: `small_flash;0x1080 0x40000400_0x400`
+- Bus addresses `0x40000400` to `0x400007FF` map to `small_flash` space
+- Accesses start at device offset `0x1080` within the `small_flash` space
+- Bus address `0x40000400` → `small_flash[0x1080]`
+- Bus address `0x40000500` → `small_flash[0x1180]`
+
+### 8.4 Space Property Inheritance
+
+Each bus range inherits properties from its referenced space:
+- **Alignment**: Memory alignment requirements
+- **Address size**: Device addressable range
+- **Word size**: Basic word size for the space
+- **Endianness**: Byte ordering for multi-byte accesses
+
+### 8.5 Bus Definition Examples
+
+**Complete Bus Definition**:
+```plaintext
+:space small_flash addr=32 word=32 type=ro align=12 endian=big
+:space large_flash addr=32 word=32 type=ro align=12 endian=big
+:space ram addr=32 word=32 type=rw align=16 endian=big
+:space etpu addr=16 word=24 type=memio align=16 endian=big
+
+:bus sysbus addr=32 ranges={
+    small_flash 0x0--0x3FFFF descr="Boot ROM"
+    large_flash 0x800000_0x800000 descr="Application Flash"  
+    ram 0x40000000_0x80000 descr="Main System RAM"
+    small_flash;0x1080 0x40000400_0x400 prio=1 descr="Flash shadow in RAM"
+    etpu 0xC3F80000_0x10000 descr="Enhanced Timer Processing Unit"
+    ram 0x50000000_0x1000 redirect=0x40000000 descr="RAM alias/mirror"
+}
+```
+
+**Range Format Comparison**:
+```plaintext
+# Equivalent range specifications
+large_flash 0x800000--0xFFFFFF descr="Application Flash (range format)"
+large_flash 0x800000_0x800000 descr="Application Flash (size format)"
+
+# Both define the same 8MB address range from 0x800000 to 0xFFFFFF
+```
+
+**Priority Handling**:
+```plaintext
+:bus sysbus addr=32 ranges={
+    ram 0x40000000_0x100000 descr="Main RAM block"
+    small_flash;0x1000 0x40000400_0x800 prio=1 descr="Flash window in RAM space"
+    special_device 0x40000600_0x100 prio=2 descr="High priority device overlay"
+}
+```
+
+In this example:
+- RAM covers `0x40000000` to `0x400FFFFF`
+- Flash overlays `0x40000400` to `0x40000BFF` with higher priority
+- Special device overlays `0x40000600` to `0x400006FF` with highest priority
+
+### 8.6 Validation Rules
+
+**Range Validation**:
+1. **Range format**: For `<start>--<end>`, validate `end >= start`
+2. **Size format**: For `<start>_<size>`, validate `size > 0`
+3. **Bus limits**: All ranges must fit within the bus address space defined by `addr=<bits>`
+4. **Device offset**: Must fit within the target space size when specified
+
+**Reference Validation**:
+1. **Space existence**: `space_tag` must reference a previously defined memory space
+2. **Priority conflicts**: Overlapping ranges should have different priorities
+3. **Redirect addresses**: Must be valid addresses within the bus address space
+
+**Semantic Validation**:
+1. **Address alignment**: Bus ranges should respect target space alignment requirements
+2. **Size compatibility**: Range sizes should be compatible with target space constraints
+3. **Device offset bounds**: Device offsets must not exceed target space size
 
 ## 9. Declarations Inside a Memory Space
 

@@ -126,6 +126,17 @@ export class ISATokenizer {
       return;
     }
     
+    // Bus range operators (-- and _)
+    if (char === '-' && this.isBusRangeSeparator()) {
+      this.tokenizeBusRangeSeparator();
+      return;
+    }
+    
+    if (char === '_' && this.isBusSizeSeparator()) {
+      this.tokenizeBusSizeSeparator();
+      return;
+    }
+    
     // Arrow operator (->) is no longer supported - breaking change
     
     // Numeric literals or identifiers
@@ -365,6 +376,69 @@ export class ISATokenizer {
     return hasOpenBracket && hasUnclosedBracket && hasNumericBefore && hasNumericAfter;
   }
 
+  private tokenizeBusRangeSeparator(): void {
+    const start = this.getCurrentPosition();
+    this.advance(); // skip first '-'
+    
+    // Consume the second '-' for the '--' operator
+    if (this.position < this.content.length && this.content[this.position] === '-') {
+      this.advance();
+    }
+    
+    const location = this.createLocation(start, this.getCurrentPosition());
+    this.addToken(TokenType.BUS_RANGE_SEPARATOR, '--', location);
+  }
+
+  private isBusRangeSeparator(): boolean {
+    // Check if this is a '--' operator in a bus range context
+    // Look for double dash and check we're in a ranges={} context
+    if (this.position + 1 < this.content.length && this.content[this.position + 1] === '-') {
+      const recentContent = this.content.slice(Math.max(0, this.position - 100), this.position);
+      
+      // Check if we're in a ranges context and not in an index context
+      const inRangesContext = recentContent.includes('ranges={') && !recentContent.includes('}');
+      const notInIndexContext = !recentContent.includes('[') || recentContent.includes(']');
+      
+      // Look for numeric literal before the '--'
+      const hasNumericBefore = /[0-9a-fA-FxXbBoO]\s*$/.test(recentContent);
+      
+      // Look for numeric literal after the '--'
+      const remainingContent = this.content.slice(this.position + 2, this.position + 20);
+      const hasNumericAfter = /^\s*[0-9a-fA-FxXbBoO]/.test(remainingContent);
+      
+      return inRangesContext && notInIndexContext && hasNumericBefore && hasNumericAfter;
+    }
+    
+    return false;
+  }
+
+  private tokenizeBusSizeSeparator(): void {
+    const start = this.getCurrentPosition();
+    this.advance(); // skip '_'
+    
+    const location = this.createLocation(start, this.getCurrentPosition());
+    this.addToken(TokenType.BUS_SIZE_SEPARATOR, '_', location);
+  }
+
+  private isBusSizeSeparator(): boolean {
+    // Check if this '_' is in a bus size context (start_size)
+    const recentContent = this.content.slice(Math.max(0, this.position - 100), this.position);
+    
+    // Check if we're in a ranges context and not in an identifier
+    const inRangesContext = recentContent.includes('ranges={') && !recentContent.includes('}');
+    
+    // Look for numeric literal before the '_'
+    const hasNumericBefore = /[0-9a-fA-FxXbBoO]\s*$/.test(recentContent);
+    
+    // Look for numeric literal after the '_'
+    const remainingContent = this.content.slice(this.position + 1, this.position + 20);
+    const hasNumericAfter = /^\s*[0-9a-fA-FxXbBoO]/.test(remainingContent);
+    
+    // Don't treat as bus size separator if this could be part of an identifier
+    const couldBeIdentifier = /[a-zA-Z]/.test(recentContent.slice(-5)) || /[a-zA-Z]/.test(remainingContent.slice(0, 5));
+    
+    return inRangesContext && hasNumericBefore && hasNumericAfter && !couldBeIdentifier;
+  }
 
   private tokenizeAlphaNumeric(): void {
     const start = this.getCurrentPosition();
@@ -544,7 +618,7 @@ export class ISATokenizer {
     }
 
     // Range options (within ranges={})
-    const validRangeOptions = ['prio', 'offset', 'buslen'];
+    const validRangeOptions = ['prio', 'redirect', 'descr', 'device'];
     const inRangesContext = recentContent.includes('ranges={') && !recentContent.includes('}');
     if (inRangesContext && validRangeOptions.includes(text)) {
       return TokenType.RANGE_OPTION_TAG;
@@ -558,7 +632,7 @@ export class ISATokenizer {
     }
 
         // Field options (for field definitions like :reg, :insn fieldname options...)
-    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'alias'];
+    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'redirect'];
     const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
     if (fieldDirectivePattern.test(recentContent) && validFieldOptions.includes(text)) {
       return TokenType.FIELD_OPTION_TAG;
