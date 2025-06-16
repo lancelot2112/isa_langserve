@@ -712,13 +712,9 @@ export class SemanticAnalyzer {
             });
           }
           
-          // Field option validation (for field definitions like :reg, :insn fieldname options...)
-          // Skip if this is an instruction operand (appears after parentheses), inside mask blocks, or inside subfields
-          const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
-          const isInInstructionOperandList = this.isTokenInInstructionOperandList(recentContent);
-          const inMaskContext = this.isTokenInMaskContext(recentContent);
-          const inSubfieldsContext = this.isTokenInSubfieldsContext(recentContent);
-          if (fieldDirectivePattern.test(recentContent) && !isInInstructionOperandList && !inMaskContext && !inSubfieldsContext && this.isInvalidFieldOption(token.text)) {
+          // Field option validation - only validate tokens that are actually field options
+          const tokenContext = this.analyzeTokenContext(recentContent, token.text);
+          if (tokenContext.shouldValidateAsFieldOption && this.isInvalidFieldOption(token.text)) {
             errors.push({
               message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, redirect`,
               location: this.ensureValidRange(token.location),
@@ -737,10 +733,8 @@ export class SemanticAnalyzer {
             });
           }
           
-          // Subfield option validation (within subfields={} and after a bit field specification)
-          const inSubfieldsContextForSubfieldValidation = this.isTokenInSubfieldsContext(recentContent);
-          const isSubfieldOption = inSubfieldsContextForSubfieldValidation && this.isTokenAfterBitFieldInSubfields(recentContent);
-          if (isSubfieldOption && this.isInvalidSubfieldOption(token.text)) {
+          // Subfield option validation - only validate tokens that are actually subfield options
+          if (tokenContext.shouldValidateAsSubfieldOption && this.isInvalidSubfieldOption(token.text)) {
             errors.push({
               message: `Invalid subfield option: '${token.text}'. Valid options are: op, descr`,
               location: this.ensureValidRange(token.location),
@@ -749,12 +743,8 @@ export class SemanticAnalyzer {
             });
           }
           
-          // Instruction option validation (for instruction definitions with options like mask=)
-          // Only validate instruction options outside of mask={} and other nested contexts
-          const instructionPattern = /:(\w+)\s+\w+\s*\([^)]*\)\s/;
-          const inMaskContextForInstruction = this.isTokenInMaskContext(recentContent);
-          const isInInstructionOperandListForInstruction = this.isTokenInInstructionOperandList(recentContent);
-          if (instructionPattern.test(recentContent) && !inMaskContextForInstruction && !isInInstructionOperandListForInstruction && this.isInvalidInstructionOption(token.text)) {
+          // Instruction option validation - only validate tokens that are actually instruction options
+          if (tokenContext.shouldValidateAsInstructionOption && this.isInvalidInstructionOption(token.text)) {
             errors.push({
               message: `Invalid instruction option: '${token.text}'. Valid options are: mask, descr, semantics, size`,
               location: this.ensureValidRange(token.location),
@@ -1002,21 +992,61 @@ export class SemanticAnalyzer {
     return braceCount > 0;
   }
 
-  private isTokenAfterBitFieldInSubfields(recentContent: string): boolean {
-    // Check if this token appears after a bit field specification in subfields
-    // We want to validate tokens that appear as: subfield_name @(...) TOKEN
-    // The recent content should contain @(...) before this token
-    const bitFieldPattern = /@\([^)]+\)/;
-    const hasBitField = bitFieldPattern.test(recentContent);
+  private analyzeTokenContext(recentContent: string, _tokenText: string): {
+    shouldValidateAsFieldOption: boolean;
+    shouldValidateAsSubfieldOption: boolean; 
+    shouldValidateAsInstructionOption: boolean;
+    context: string;
+  } {
+    // Comprehensive context analysis to determine what kind of validation to apply
     
-    if (!hasBitField) return false;
+    // Check various contexts
+    const inMaskContext = this.isTokenInMaskContext(recentContent);
+    const inSubfieldsContext = this.isTokenInSubfieldsContext(recentContent);
+    const inOperandListContext = this.isTokenInInstructionOperandList(recentContent);
     
-    // Also check that this token doesn't appear at the start of a new subfield line
-    // If the recent content ends with whitespace or newline-like pattern, this might be a new subfield tag
-    const endsWithWhitespace = /\s+$/.test(recentContent);
+    // Pattern matches
+    const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
+    const instructionPattern = /:(\w+)\s+\w+\s*\([^)]*\)\s/;
+    const hasFieldDirective = fieldDirectivePattern.test(recentContent);
+    const hasInstructionDirective = instructionPattern.test(recentContent);
     
-    // If we have a bit field and don't end with whitespace, we're likely after a bit field
-    return hasBitField && !endsWithWhitespace;
+    // Context-specific checks
+    const isAfterBitField = /@\([^)]+\)\s+$/.test(recentContent); // Token appears right after "@(...) "
+    
+    let context = 'unknown';
+    let shouldValidateAsFieldOption = false;
+    let shouldValidateAsSubfieldOption = false;
+    let shouldValidateAsInstructionOption = false;
+    
+    if (inMaskContext) {
+      context = 'mask';
+      // In mask context, tokens are field references, not options
+    } else if (inOperandListContext) {
+      context = 'operand-list';
+      // In operand list context, tokens are field references, not options  
+    } else if (inSubfieldsContext) {
+      if (isAfterBitField) {
+        context = 'subfield-option';
+        shouldValidateAsSubfieldOption = true;
+      } else {
+        context = 'subfield-tag';
+        // Subfield tags are not validated as options
+      }
+    } else if (hasInstructionDirective) {
+      context = 'instruction-option';
+      shouldValidateAsInstructionOption = true;
+    } else if (hasFieldDirective) {
+      context = 'field-option'; 
+      shouldValidateAsFieldOption = true;
+    }
+    
+    return {
+      shouldValidateAsFieldOption,
+      shouldValidateAsSubfieldOption,
+      shouldValidateAsInstructionOption,
+      context
+    };
   }
 
   private validateFieldNode(node: FieldNode): ValidationError[] {
