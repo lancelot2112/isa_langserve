@@ -718,7 +718,7 @@ export class SemanticAnalyzer {
           const isInstructionOperand = recentContent.includes('(') && recentContent.includes(')');
           if (fieldDirectivePattern.test(recentContent) && !isInstructionOperand && this.isInvalidFieldOption(token.text)) {
             errors.push({
-              message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, alias`,
+              message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, redirect`,
               location: this.ensureValidRange(token.location),
               severity: 'warning',
               code: 'invalid-field-option',
@@ -747,8 +747,10 @@ export class SemanticAnalyzer {
           }
           
           // Instruction option validation (for instruction definitions with options like mask=)
+          // Only validate instruction options outside of mask={} and other nested contexts
           const instructionPattern = /:(\w+)\s+\w+\s*\([^)]*\)\s/;
-          if (instructionPattern.test(recentContent) && this.isInvalidInstructionOption(token.text)) {
+          const inMaskContext = recentContent.includes('mask={') && !recentContent.includes('}');
+          if (instructionPattern.test(recentContent) && !inMaskContext && this.isInvalidInstructionOption(token.text)) {
             errors.push({
               message: `Invalid instruction option: '${token.text}'. Valid options are: mask, descr, semantics`,
               location: this.ensureValidRange(token.location),
