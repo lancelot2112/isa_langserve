@@ -72,20 +72,24 @@ describe('Space Indirection Tokenization', () => {
     expect(tokenTexts).toContain('lsb');
   });
 
-  test('tokenizes legacy field reference after indirection arrow', () => {
+  test('legacy arrow operator is no longer supported', () => {
     const content = '$reg->spr22.lsb';
     const tokenizer = new ISATokenizer(content, defaultOptions);
     const tokens = tokenizer.tokenize();
 
     const significantTokens = tokens.filter(t => t.text.trim());
 
-    // Should have space indirection, arrow, and field reference tokens
-    expect(significantTokens.length).toBeGreaterThanOrEqual(3);
+    // Should have space indirection and field reference tokens, but no arrow token
+    // The arrow operator is no longer supported (breaking change)
+    expect(significantTokens.length).toBeGreaterThanOrEqual(2);
 
     const tokenTexts = significantTokens.map(t => t.text);
     expect(tokenTexts).toContain('$reg');
-    expect(tokenTexts).toContain('->');
-    expect(tokenTexts).toContain('spr22.lsb');
+    expect(tokenTexts).not.toContain('->'); // Arrow operator no longer supported
+    
+    // The remaining content should be tokenized as field reference
+    const fieldRefToken = significantTokens.find(t => t.text.includes('spr22'));
+    expect(fieldRefToken).toBeDefined();
   });
 
   test('handles complex mask with new context operator', () => {

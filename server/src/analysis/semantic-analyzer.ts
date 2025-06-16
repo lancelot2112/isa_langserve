@@ -892,12 +892,12 @@ export class SemanticAnalyzer {
   }
 
   private isInvalidFieldOption(text: string): boolean {
-    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'redirect'];
+    const validFieldOptions = ['size', 'count', 'reset', 'name', 'descr', 'redirect'];
     return !validFieldOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 
   private isInvalidBusOption(text: string): boolean {
-    const validBusOptions = ['addr', 'ranges', 'prio', 'offset', 'buslen'];
+    const validBusOptions = ['addr', 'ranges'];
     return !validBusOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 

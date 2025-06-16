@@ -126,14 +126,15 @@ export class ISATokenizer {
       return;
     }
     
-    // Bus range operators (-- and _)
-    if (char === '-' && this.isBusRangeSeparator()) {
-      this.tokenizeBusRangeSeparator();
+    // Bus size separator must be checked before alphanumeric to catch _ in bus context
+    if (char === '_' && this.isBusSizeSeparator()) {
+      this.tokenizeBusSizeSeparator();
       return;
     }
     
-    if (char === '_' && this.isBusSizeSeparator()) {
-      this.tokenizeBusSizeSeparator();
+    // Bus range operators (--)
+    if (char === '-' && this.isBusRangeSeparator()) {
+      this.tokenizeBusRangeSeparator();
       return;
     }
     
@@ -302,10 +303,12 @@ export class ISATokenizer {
     const startPos = this.position;
     this.advance(); // skip '$'
     
-    // Read the space tag following the $, but stop at ';' for context operator
+    // Read the space tag following the $, but stop at separators
     while (this.position < this.content.length && 
            this.content[this.position] && 
            this.content[this.position] !== ';' &&
+           this.content[this.position] !== '-' &&
+           this.content[this.position] !== '.' &&
            this.isIdentifierChar(this.content[this.position]!)) {
       this.advance();
     }
@@ -435,7 +438,11 @@ export class ISATokenizer {
     const hasNumericAfter = /^\s*[0-9a-fA-FxXbBoO]/.test(remainingContent);
     
     // Don't treat as bus size separator if this could be part of an identifier
-    const couldBeIdentifier = /[a-zA-Z]/.test(recentContent.slice(-5)) || /[a-zA-Z]/.test(remainingContent.slice(0, 5));
+    // Check if there's a letter immediately before or after the underscore
+    const letterBefore = /[a-zA-Z]$/.test(recentContent);
+    const letterAfter = /^[a-zA-Z]/.test(remainingContent);
+    const couldBeIdentifier = letterBefore || letterAfter;
+    
     
     return inRangesContext && hasNumericBefore && hasNumericAfter && !couldBeIdentifier;
   }
@@ -473,22 +480,35 @@ export class ISATokenizer {
     }
     
     // For hex literals (0x...), include any additional letters that might be invalid hex digits
+    // But stop at underscore if we're in a bus range context
     if (text.startsWith('0x') || text.startsWith('0X')) {
       while (this.position < this.content.length && this.content[this.position] && /[a-zA-Z0-9]/.test(this.content[this.position]!)) {
+        // Check if this is an underscore in a bus range context
+        if (this.content[this.position] === '_' && this.isBusSizeSeparator()) {
+          break; // Stop here, let the bus size separator be tokenized separately
+        }
         text += this.content[this.position]!;
         this.advance();
       }
     }
     // For binary literals (0b...), include any additional digits that might be invalid
+    // But stop at underscore if we're in a bus range context
     else if (text.startsWith('0b') || text.startsWith('0B')) {
       while (this.position < this.content.length && this.content[this.position] && /[0-9a-zA-Z]/.test(this.content[this.position]!)) {
+        if (this.content[this.position] === '_' && this.isBusSizeSeparator()) {
+          break;
+        }
         text += this.content[this.position]!;
         this.advance();
       }
     }
     // For octal literals (0o...), include any additional digits that might be invalid
+    // But stop at underscore if we're in a bus range context
     else if (text.startsWith('0o') || text.startsWith('0O')) {
       while (this.position < this.content.length && this.content[this.position] && /[0-9a-zA-Z]/.test(this.content[this.position]!)) {
+        if (this.content[this.position] === '_' && this.isBusSizeSeparator()) {
+          break;
+        }
         text += this.content[this.position]!;
         this.advance();
       }
@@ -605,7 +625,7 @@ export class ISATokenizer {
     }
 
     // Bus options
-    const validBusOptions = ['addr', 'ranges', 'prio', 'offset', 'buslen'];
+    const validBusOptions = ['addr', 'ranges'];
     if (recentContent.includes(':bus ') && validBusOptions.includes(text)) {
       return TokenType.BUS_OPTION_TAG;
     }
@@ -617,7 +637,7 @@ export class ISATokenizer {
       return TokenType.SUBFIELD_OPTION_TAG;
     }
 
-    // Range options (within ranges={})
+    // Range options (within ranges={}) - check this FIRST to take precedence
     const validRangeOptions = ['prio', 'redirect', 'descr', 'device'];
     const inRangesContext = recentContent.includes('ranges={') && !recentContent.includes('}');
     if (inRangesContext && validRangeOptions.includes(text)) {
@@ -631,10 +651,11 @@ export class ISATokenizer {
       return TokenType.INSTRUCTION_OPTION_TAG;
     }
 
-        // Field options (for field definitions like :reg, :insn fieldname options...)
+    // Field options (for field definitions like :reg, :insn fieldname options...)
+    // Only apply this if we're not in a ranges context
     const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'redirect'];
     const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
-    if (fieldDirectivePattern.test(recentContent) && validFieldOptions.includes(text)) {
+    if (!inRangesContext && fieldDirectivePattern.test(recentContent) && validFieldOptions.includes(text)) {
       return TokenType.FIELD_OPTION_TAG;
     }
 

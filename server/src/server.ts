@@ -85,6 +85,12 @@ const baseTokenTypes = [
   'subfieldOptionTag',
   'instructionOptionTag',
   'rangeOptionTag',
+  'busRangeSeparator',
+  'busSizeSeparator',
+  'indexBracketOpen',
+  'indexBracketClose',
+  'indexRangeSeparator',
+  'indexedFieldTag',
   'equalsSign',
   'numericLiteral',
   'bitField',
@@ -315,6 +321,14 @@ connection.onCompletion((params: TextDocumentPositionParams): CompletionItem[] =
     // Get current line context
     const line = document.getText().split('\n')[params.position.line];
     const prefix = line ? line.substring(0, params.position.character) : '';
+    
+    // Get broader context for bus range completions
+    const allText = document.getText();
+    const recentContext = allText.slice(Math.max(0, allText.lastIndexOf('\n', 
+      document.offsetAt(params.position)) - 200), document.offsetAt(params.position));
+
+    // Check if we're in a bus ranges context
+    const inRangesContext = recentContext.includes('ranges={') && !recentContext.includes('}');
 
     // Space tag completions after ':'
     if (prefix.endsWith(':')) {
@@ -329,8 +343,74 @@ connection.onCompletion((params: TextDocumentPositionParams): CompletionItem[] =
       }
     }
 
+    // Bus range operator completions
+    if (inRangesContext && /[0-9a-fA-FxXbBoO]\s*$/.test(prefix)) {
+      // Suggest range operators after numeric values
+      completions.push(
+        {
+          label: '--',
+          kind: CompletionItemKind.Operator,
+          detail: 'Range format: start--end',
+          insertText: '--',
+          documentation: 'Bus range operator for start--end format'
+        },
+        {
+          label: '_',
+          kind: CompletionItemKind.Operator,
+          detail: 'Size format: start_size',
+          insertText: '_',
+          documentation: 'Bus size operator for start_size format'
+        }
+      );
+    }
+
+    // Bus range option completions
+    if (inRangesContext && /\s+$/.test(prefix) && !/ranges=\{?\s*$/.test(prefix)) {
+      const rangeOptions = [
+        { name: 'prio', detail: 'Priority for overlapping ranges', type: 'number' },
+        { name: 'redirect', detail: 'Redirect address for aliasing', type: 'address' },
+        { name: 'descr', detail: 'Description of the range', type: 'string' },
+        { name: 'device', detail: 'Device identifier', type: 'identifier' }
+      ];
+
+      for (const option of rangeOptions) {
+        completions.push({
+          label: option.name,
+          kind: CompletionItemKind.Property,
+          detail: `Range option: ${option.detail}`,
+          insertText: `${option.name}=`,
+          documentation: `${option.detail} (${option.type})`
+        });
+      }
+    }
+
+    // Context operator completion for space indirection
+    if (prefix.includes('$') && /\$\w+$/.test(prefix)) {
+      completions.push({
+        label: ';',
+        kind: CompletionItemKind.Operator,
+        detail: 'Context operator for space indirection',
+        insertText: ';',
+        documentation: 'Separates space tag from field reference'
+      });
+    }
+
+    // Space tag completions in bus ranges context
+    if (inRangesContext && /^\s*$/.test(prefix) || (inRangesContext && /\{\s*$/.test(prefix))) {
+      const spaceTags = symbolTable.getSpaceTags();
+      for (const spaceTag of spaceTags) {
+        completions.push({
+          label: spaceTag,
+          kind: CompletionItemKind.Module,
+          detail: `Space tag for bus range`,
+          insertText: spaceTag,
+          documentation: `Reference to space '${spaceTag}' in bus range definition`
+        });
+      }
+    }
+
     // Field completions in appropriate contexts
-    if (prefix.includes(':') && !prefix.endsWith(':')) {
+    if (prefix.includes(':') && !prefix.endsWith(':') && !inRangesContext) {
       const spaceMatch = prefix.match(/:(\w+)/);
       if (spaceMatch) {
         const spaceTag = spaceMatch[1];
