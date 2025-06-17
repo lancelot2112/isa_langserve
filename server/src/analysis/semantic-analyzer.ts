@@ -704,6 +704,25 @@ export class SemanticAnalyzer {
       if (token.type === TokenType.FIELD_REFERENCE) {
         const symbol = this.symbolTable.findSymbol(token.text, token.spaceTag);
         if (symbol) {
+          // Get token context to determine validation needs
+          const tokenContext = this.analyzeTokenContextWithStateMachine(tokens, i);
+          
+          // Skip option validation entirely if this token is in a subfield name definition context
+          // In subfields-definition state, tokens represent subfield names being defined, not options
+          if (tokenContext.context === 'subfields-definition') {
+            // This token is a subfield name being defined, not an option - skip all option validation
+            continue;
+          }
+          
+          // Also skip validation if this token is followed by a bit field, indicating it's a subfield name
+          // This handles cases where the state machine is in subfield-options but we're actually defining a new subfield
+          const nextToken = tokens[i + 1];
+          if (nextToken && nextToken.type === TokenType.BIT_FIELD) {
+            // This token is a subfield name being defined (followed by @(...)), not an option
+            continue;
+          }
+          
+          
           // Token references a valid symbol, so check if it's in wrong context (option validation)
           const recentContent = this.getRecentTokenContext(tokens, token);
           
@@ -718,7 +737,6 @@ export class SemanticAnalyzer {
           }
           
           // Field option validation - only validate tokens that are actually field options
-          const tokenContext = this.analyzeTokenContextWithStateMachine(tokens, i);
           if (tokenContext.shouldValidateAsFieldOption && this.isInvalidFieldOption(token.text)) {
             errors.push({
               message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, redirect`,

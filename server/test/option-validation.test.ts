@@ -218,4 +218,72 @@ describe('Option Validation Integration', () => {
       expect(commentTokens.length).toBeGreaterThan(0);
     });
   });
+
+  describe('Subfield Option Validation Fix', () => {
+    test('does not flag subfield names as invalid options', () => {
+      // This tests the fix for the issue where 'opcd5' was being flagged as "Invalid subfield option"
+      // when it should be recognized as a subfield name being defined
+      const content = ':other overlap subfields={ opcd5 @(0-5) op=MajorOp overlap @(?|5-8|4|0b00) }';
+      
+      const document = TextDocument.create('test://subfield-fix.isa', 'isa', 1, content);
+      
+      // Add a mock opcd5 symbol that exists elsewhere to trigger the original bug
+      analyzer.getSymbolTable().addSymbol({
+        name: 'opcd5',
+        type: 'field',
+        location: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 }, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } } },
+        fileUri: 'test://other.isa',
+        spaceTag: 'insn',
+        definition: {
+          type: 'field',
+          location: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 }, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } } },
+          text: ':insn opcd5',
+        }
+      });
+      
+      const result = analyzer.analyzeFile(document);
+      
+      // Should NOT have "Invalid subfield option: 'opcd5'" error
+      const opcd5Errors = result.errors.filter(e => 
+        e.message.includes('opcd5') && e.code === 'invalid-subfield-option'
+      );
+      expect(opcd5Errors.length).toBe(0);
+      
+      // Should NOT have "Invalid subfield option: 'overlap'" error for the second subfield name
+      const overlapErrors = result.errors.filter(e => 
+        e.message.includes('overlap') && e.code === 'invalid-subfield-option'
+      );
+      expect(overlapErrors.length).toBe(0);
+      
+      // Should still validate actual subfield options like 'op' correctly (no error for valid option)
+      const opErrors = result.errors.filter(e => 
+        e.message.includes("'op'") && e.code === 'invalid-subfield-option'
+      );
+      expect(opErrors.length).toBe(0); // 'op' is a valid subfield option, should not error
+    });
+
+    test('validates field references correctly when used as subfield options', () => {
+      // This test verifies that the fix doesn't prevent validation of field references
+      // that are in wrong contexts, just skips validation for subfield name definitions
+      const content = ':other overlap subfields={ opcd5 @(0-5) }';
+      
+      const document = TextDocument.create('test://simple-fix.isa', 'isa', 1, content);
+      
+      const result = analyzer.analyzeFile(document);
+      
+      // The key thing is that opcd5 should NOT be flagged as invalid subfield option
+      // even though it exists as a symbol
+      const opcd5SubfieldErrors = result.errors.filter(e => 
+        e.message.includes('opcd5') && e.code === 'invalid-subfield-option'
+      );
+      expect(opcd5SubfieldErrors.length).toBe(0);
+      
+      // And there should be no undefined field reference error for opcd5 either
+      // since it exists as a symbol we added
+      const opcd5UndefinedErrors = result.errors.filter(e => 
+        e.message.includes('opcd5') && e.code === 'undefined-field-reference'
+      );
+      expect(opcd5UndefinedErrors.length).toBe(0);
+    });
+  });
 });
