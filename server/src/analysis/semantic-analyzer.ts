@@ -19,6 +19,7 @@ import { ISASymbolTable } from './symbol-table';
 import { ISATokenizer } from '../parser/tokenizer';
 import { BitFieldParser } from '../parser/bit-field-parser';
 import { NumericParser } from '../utils/numeric-parser';
+import { TokenContextStateMachine, ValidationContext } from '../parser/token-context-state-machine';
 
 export interface AnalysisResult {
   symbols: ISASymbolTable;
@@ -30,6 +31,7 @@ export interface AnalysisResult {
 export class SemanticAnalyzer {
   private symbolTable: ISASymbolTable = new ISASymbolTable();
   private fileContexts: Map<string, FileContext> = new Map();
+  private stateMachine: TokenContextStateMachine = new TokenContextStateMachine();
   
   /**
    * Analyze a single file
@@ -71,6 +73,9 @@ export class SemanticAnalyzer {
     
     // Enhance tokens with semantic information
     const enhancedTokens = this.enhanceTokens(tokens, uri);
+    
+    // Reset state machine for this document
+    this.stateMachine.reset();
     
     return {
       symbols: this.symbolTable,
@@ -713,7 +718,7 @@ export class SemanticAnalyzer {
           }
           
           // Field option validation - only validate tokens that are actually field options
-          const tokenContext = this.analyzeTokenContext(recentContent, token.text);
+          const tokenContext = this.analyzeTokenContextWithStateMachine(tokens, i);
           if (tokenContext.shouldValidateAsFieldOption && this.isInvalidFieldOption(token.text)) {
             errors.push({
               message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, redirect`,
@@ -922,131 +927,24 @@ export class SemanticAnalyzer {
     return !validRangeOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 
-  private isTokenInMaskContext(recentContent: string): boolean {
-    // More robust detection of mask context
-    // Look for 'mask' followed by '=' and '{' (allowing spaces between)
-    // Pattern: mask\s*=\s*{
-    const maskPattern = /mask\s*=\s*\{/;
-    const maskMatch = maskPattern.exec(recentContent);
-    if (!maskMatch) return false;
-    
-    // Count braces from the mask location to determine if we're inside
-    const afterMask = recentContent.substring(maskMatch.index + maskMatch[0].length);
-    let braceCount = 1; // We found the opening brace
-    
-    for (let i = 0; i < afterMask.length; i++) {
-      if (afterMask[i] === '{') {
-        braceCount++;
-      } else if (afterMask[i] === '}') {
-        braceCount--;
-      }
-    }
-    
-    // We're in mask context if braces are still open
-    return braceCount > 0;
-  }
 
-  private isTokenInInstructionOperandList(recentContent: string): boolean {
-    // Check if we're inside an instruction operand list (between parentheses)
-    // Look for pattern: :space_tag instruction_name ( ... where we haven't reached the closing )
-    const instructionWithOperandPattern = /:(\w+)\s+(\w+[.]?)\s*\(/;
-    const match = instructionWithOperandPattern.exec(recentContent);
-    if (!match) return false;
-    
-    // Count parentheses from the operand list start
-    const afterOpenParen = recentContent.substring(match.index + match[0].length);
-    let parenCount = 1; // We found the opening parenthesis
-    
-    for (let i = 0; i < afterOpenParen.length; i++) {
-      if (afterOpenParen[i] === '(') {
-        parenCount++;
-      } else if (afterOpenParen[i] === ')') {
-        parenCount--;
-      }
-    }
-    
-    // We're in operand list context if parentheses are still open
-    return parenCount > 0;
-  }
 
-  private isTokenInSubfieldsContext(recentContent: string): boolean {
-    // Check if we're inside a subfields context
-    // Look for 'subfields' followed by '=' and '{' (allowing spaces between)
-    const subfieldsPattern = /subfields\s*=\s*\{/;
-    const subfieldsMatch = subfieldsPattern.exec(recentContent);
-    if (!subfieldsMatch) return false;
+  /**
+   * NEW: Analyze token context using state machine approach
+   * This replaces the string-based analyzeTokenContext method
+   */
+  private analyzeTokenContextWithStateMachine(tokens: Token[], currentIndex: number): ValidationContext {
+    // Reset state machine and process tokens up to current position
+    this.stateMachine.reset();
     
-    // Count braces from the subfields location to determine if we're inside
-    const afterSubfields = recentContent.substring(subfieldsMatch.index + subfieldsMatch[0].length);
-    let braceCount = 1; // We found the opening brace
-    
-    for (let i = 0; i < afterSubfields.length; i++) {
-      if (afterSubfields[i] === '{') {
-        braceCount++;
-      } else if (afterSubfields[i] === '}') {
-        braceCount--;
+    for (let i = 0; i <= currentIndex; i++) {
+      const token = tokens[i];
+      if (token) {
+        this.stateMachine.processToken(token);
       }
     }
     
-    // We're in subfields context if braces are still open
-    return braceCount > 0;
-  }
-
-  private analyzeTokenContext(recentContent: string, _tokenText: string): {
-    shouldValidateAsFieldOption: boolean;
-    shouldValidateAsSubfieldOption: boolean; 
-    shouldValidateAsInstructionOption: boolean;
-    context: string;
-  } {
-    // Comprehensive context analysis to determine what kind of validation to apply
-    
-    // Check various contexts
-    const inMaskContext = this.isTokenInMaskContext(recentContent);
-    const inSubfieldsContext = this.isTokenInSubfieldsContext(recentContent);
-    const inOperandListContext = this.isTokenInInstructionOperandList(recentContent);
-    
-    // Pattern matches
-    const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
-    const instructionPattern = /:(\w+)\s+\w+\s*\([^)]*\)\s/;
-    const hasFieldDirective = fieldDirectivePattern.test(recentContent);
-    const hasInstructionDirective = instructionPattern.test(recentContent);
-    
-    // Context-specific checks
-    const isAfterBitField = /@\([^)]+\)\s+$/.test(recentContent); // Token appears right after "@(...) "
-    
-    let context = 'unknown';
-    let shouldValidateAsFieldOption = false;
-    let shouldValidateAsSubfieldOption = false;
-    let shouldValidateAsInstructionOption = false;
-    
-    if (inMaskContext) {
-      context = 'mask';
-      // In mask context, tokens are field references, not options
-    } else if (inOperandListContext) {
-      context = 'operand-list';
-      // In operand list context, tokens are field references, not options  
-    } else if (inSubfieldsContext) {
-      if (isAfterBitField) {
-        context = 'subfield-option';
-        shouldValidateAsSubfieldOption = true;
-      } else {
-        context = 'subfield-tag';
-        // Subfield tags are not validated as options
-      }
-    } else if (hasInstructionDirective) {
-      context = 'instruction-option';
-      shouldValidateAsInstructionOption = true;
-    } else if (hasFieldDirective) {
-      context = 'field-option'; 
-      shouldValidateAsFieldOption = true;
-    }
-    
-    return {
-      shouldValidateAsFieldOption,
-      shouldValidateAsSubfieldOption,
-      shouldValidateAsInstructionOption,
-      context
-    };
+    return this.stateMachine.getValidationContext();
   }
 
   private validateFieldNode(node: FieldNode): ValidationError[] {
