@@ -737,7 +737,8 @@ export class SemanticAnalyzer {
           }
           
           // Field option validation - only validate tokens that are actually field options
-          if (tokenContext.shouldValidateAsFieldOption && this.isInvalidFieldOption(token.text)) {
+          // Skip validation if this is the field name being defined right after a directive
+          if (tokenContext.shouldValidateAsFieldOption && !this.isFieldNameBeingDefined(tokens, i) && this.isInvalidFieldOption(token.text)) {
             errors.push({
               message: `Invalid field option: '${token.text}'. Valid options are: offset, size, count, reset, name, descr, redirect`,
               location: this.ensureValidRange(token.location),
@@ -767,7 +768,8 @@ export class SemanticAnalyzer {
           }
           
           // Instruction option validation - only validate tokens that are actually instruction options
-          if (tokenContext.shouldValidateAsInstructionOption && this.isInvalidInstructionOption(token.text)) {
+          // Skip validation if this is the instruction name being defined right after a directive
+          if (tokenContext.shouldValidateAsInstructionOption && !this.isFieldNameBeingDefined(tokens, i) && this.isInvalidInstructionOption(token.text)) {
             errors.push({
               message: `Invalid instruction option: '${token.text}'. Valid options are: mask, descr, semantics, size`,
               location: this.ensureValidRange(token.location),
@@ -1724,5 +1726,32 @@ export class SemanticAnalyzer {
     }
     
     return errors;
+  }
+
+  /**
+   * Check if a token is a field name being defined (immediately after a directive)
+   */
+  private isFieldNameBeingDefined(tokens: Token[], currentIndex: number): boolean {
+    const token = tokens[currentIndex];
+    if (!token) return false;
+    
+    // Look for the previous non-whitespace token
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const prevToken = tokens[i];
+      if (!prevToken) continue;
+      
+      // Skip whitespace and newlines
+      if (prevToken.text.trim() === '' || prevToken.text === '\n') continue;
+      
+      // If the previous token is a directive (like :reg, :insn), this token is the field name being defined
+      if (prevToken.type === TokenType.DIRECTIVE || prevToken.type === TokenType.SPACE_DIRECTIVE) {
+        return true;
+      }
+      
+      // If we hit any other token type, this is not a field name being defined
+      break;
+    }
+    
+    return false;
   }
 }
