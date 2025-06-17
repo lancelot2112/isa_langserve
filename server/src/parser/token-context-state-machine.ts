@@ -97,7 +97,7 @@ export class TokenContextStateMachine {
     [`${ContextState.SUBFIELD_OPTIONS}|${TransitionTrigger.IDENTIFIER_TOKEN}`, ContextState.SUBFIELD_OPTIONS], // stay in subfield options
     [`${ContextState.SUBFIELD_OPTIONS}|${TransitionTrigger.COMMA}`, ContextState.SUBFIELDS_DEFINITION], // back to subfields definition
     [`${ContextState.SUBFIELD_OPTIONS}|${TransitionTrigger.CLOSE_BRACE}`, ContextState.FIELD_OPTIONS], // exit subfields entirely
-    [`${ContextState.SUBFIELD_OPTIONS}|${TransitionTrigger.NEWLINE_OR_END}`, ContextState.UNKNOWN],
+    [`${ContextState.SUBFIELD_OPTIONS}|${TransitionTrigger.NEWLINE_OR_END}`, ContextState.SUBFIELDS_DEFINITION], // back to subfields for next subfield
     
     // From RANGES_DEFINITION (after ranges=)
     [`${ContextState.RANGES_DEFINITION}|${TransitionTrigger.OPEN_BRACE}`, ContextState.RANGES_DEFINITION], // stay in ranges

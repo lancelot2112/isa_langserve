@@ -124,6 +124,43 @@ describe('TokenContextStateMachine', () => {
       expect(states[6]).toBe(ContextState.SUBFIELD_OPTIONS); // @(0-7)
       expect(states[10]).toBe(ContextState.FIELD_OPTIONS); // }
     });
+    
+    test('handles field with multiple subfields', () => {
+      const tokens = [
+        createToken(TokenType.DIRECTIVE, ':reg'),
+        createToken(TokenType.FIELD_TAG, 'SPR'),
+        createToken(TokenType.FIELD_REFERENCE, 'subfields'),
+        createToken(TokenType.FIELD_REFERENCE, '='),
+        createToken(TokenType.FIELD_REFERENCE, '{'),
+        createToken(TokenType.SUBFIELD_TAG, 'lsb'),
+        createToken(TokenType.BIT_FIELD, '@(0-7)'),
+        createToken(TokenType.FIELD_REFERENCE, 'op'),
+        createToken(TokenType.FIELD_REFERENCE, '='),
+        createToken(TokenType.QUOTED_STRING, '"write"'),
+        createToken(TokenType.FIELD_REFERENCE, '\n'), // newline to simulate end of first subfield
+        createToken(TokenType.SUBFIELD_TAG, 'msb'), // second subfield
+        createToken(TokenType.BIT_FIELD, '@(8-15)'),
+        createToken(TokenType.FIELD_REFERENCE, 'op'),
+        createToken(TokenType.FIELD_REFERENCE, '='),
+        createToken(TokenType.QUOTED_STRING, '"read"'),
+        createToken(TokenType.FIELD_REFERENCE, '}'),
+      ];
+      
+      const states: ContextState[] = [];
+      for (const token of tokens) {
+        const state = stateMachine.processToken(token);
+        states.push(state);
+      }
+      
+      // Verify multiple subfields context transitions
+      expect(states[0]).toBe(ContextState.FIELD_DEFINITION); // :reg
+      expect(states[1]).toBe(ContextState.FIELD_OPTIONS); // SPR
+      expect(states[4]).toBe(ContextState.SUBFIELDS_DEFINITION); // {
+      expect(states[6]).toBe(ContextState.SUBFIELD_OPTIONS); // @(0-7) - first subfield
+      expect(states[10]).toBe(ContextState.SUBFIELDS_DEFINITION); // \n - back to subfields for next one
+      expect(states[12]).toBe(ContextState.SUBFIELD_OPTIONS); // @(8-15) - second subfield  
+      expect(states[16]).toBe(ContextState.FIELD_OPTIONS); // } - exit subfields
+    });
   });
   
   describe('Validation Context', () => {
