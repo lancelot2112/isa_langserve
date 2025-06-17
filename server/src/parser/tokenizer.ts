@@ -453,29 +453,7 @@ export class ISATokenizer {
     
     let text = this.content.slice(startPos, this.position);
     
-    // Check if this identifier is followed by an index bracket [
-    if (this.position < this.content.length && this.content[this.position] === '[') {
-      // This is an indexed field tag - collect the entire [startindex-endindex] part
-      const indexStart = this.position;
-      this.advance(); // skip '['
-      
-      // Collect content until closing ']'
-      while (this.position < this.content.length && this.content[this.position] !== ']') {
-        this.advance();
-      }
-      
-      if (this.position < this.content.length && this.content[this.position] === ']') {
-        this.advance(); // skip ']'
-        text = this.content.slice(startPos, this.position); // Include the full indexed syntax
-        
-        const location = this.createLocation(start, this.getCurrentPosition());
-        this.addToken(TokenType.INDEXED_FIELD_TAG, text, location, this.currentSpaceTag || undefined);
-        return;
-      } else {
-        // Malformed bracket - reset position and treat as regular identifier
-        this.position = indexStart;
-      }
-    }
+    // The identifier tokenization ends here - index brackets will be handled by the main tokenize loop
     
     const location = this.createLocation(start, this.getCurrentPosition());
     
@@ -494,10 +472,15 @@ export class ISATokenizer {
       return optionType;
     }
     
-    // If we're after a space directive like :reg, :insn, etc., and this is the first identifier,
-    // it's likely a field or instruction tag
-    const spaceDirectiveMatch = recentContent.match(/:(\w+)\s+$/);
-    if (spaceDirectiveMatch && this.currentSpaceTag) {
+    // If we're immediately after a space directive like :reg, :insn, etc., this is a field or instruction tag
+    const immediateDirectiveMatch = recentContent.match(/:(\w+)\s+[a-zA-Z0-9_.-]+(\[[^\]]*\])?$/);
+    if (immediateDirectiveMatch && this.currentSpaceTag) {
+      const directiveType = immediateDirectiveMatch[1];
+      // For instruction directives, return INSTRUCTION_TAG
+      if (directiveType === 'insn' || directiveType === 'instruction') {
+        return TokenType.INSTRUCTION_TAG;
+      }
+      // For field directives, return FIELD_TAG
       return TokenType.FIELD_TAG;
     }
     
@@ -558,8 +541,8 @@ export class ISATokenizer {
     }
 
         // Field options (for field definitions like :reg, :insn fieldname options...)
-    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'alias'];
-    const fieldDirectivePattern = /:(\w+)\s+\w+\s/;
+    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'alias', 'op'];
+    const fieldDirectivePattern = /:(\w+)\s+[a-zA-Z0-9_.-]+(\[[^\]]*\])?/;
     if (fieldDirectivePattern.test(recentContent) && validFieldOptions.includes(text)) {
       return TokenType.FIELD_OPTION_TAG;
     }
@@ -627,4 +610,5 @@ export class ISATokenizer {
   private isNumericChar(char: string): boolean {
     return /[0-9a-fA-FxXbBoO]/.test(char);
   }
+
 }
