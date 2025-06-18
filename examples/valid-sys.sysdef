@@ -9,13 +9,14 @@
 :space small_flash addr=32 word=32 type=ro align=12 endian=big
 :space large_flash addr=32 word=32 type=ro align=12 endian=big
 :space ram addr=32 word=32 type=rw align=16 endian=big
+:space etpu addr=16 word=24 type=memio align=16 endian=big
 
 #Map the spaces to a system bus definition
 :bus sysbus addr=32 ranges={
-    small_flash->0x0 buslen=0x40000
-    large_flash->0x800000 buslen=0x800000
-    ram->0x40000000 buslen=0x80000
+    small_flash 0x0_0x40000 descr="Boot ROM"
+    large_flash 0x800000_0x800000 descr="Application Flash"
+    ram 0x40000000_0x80000 descr="Main System RAM"
     #overlaps with a previous definition is a subrange of a previously mapped space
-    small_flash->0x40000400 buslen=0x400 offset=0x1080 prio=1 # flash image in ram space
-    etpu->0xC3F80000 buslen=0x10000
+    small_flash;0x1080 0x40000400_0x400 prio=1 descr="Flash shadow in RAM space"
+    etpu 0xC3F80000_0x10000 descr="Enhanced Timer Processing Unit"
 }

@@ -764,7 +764,7 @@ export class SemanticAnalyzer {
           const inRangesContext = recentContent.includes('ranges={') && !recentContent.includes('}');
           if (inRangesContext && this.isInvalidRangeOption(token.text)) {
             errors.push({
-              message: `Invalid range option: '${token.text}'. Valid options are: prio, offset, buslen`,
+              message: `Invalid range option: '${token.text}'. Valid options are: prio, redirect, descr, device`,
               location: this.ensureValidRange(token.location),
               severity: 'warning',
               code: 'invalid-range-option',
@@ -905,12 +905,12 @@ export class SemanticAnalyzer {
   }
 
   private isInvalidFieldOption(text: string): boolean {
-    const validFieldOptions = ['offset', 'size', 'count', 'reset', 'name', 'descr', 'redirect'];
+    const validFieldOptions = ['size', 'count', 'reset', 'name', 'descr', 'redirect'];
     return !validFieldOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 
   private isInvalidBusOption(text: string): boolean {
-    const validBusOptions = ['addr', 'ranges', 'prio', 'offset', 'buslen'];
+    const validBusOptions = ['addr', 'ranges'];
     return !validBusOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 
@@ -925,7 +925,7 @@ export class SemanticAnalyzer {
   }
 
   private isInvalidRangeOption(text: string): boolean {
-    const validRangeOptions = ['prio', 'offset', 'buslen'];
+    const validRangeOptions = ['prio', 'redirect', 'descr', 'device'];
     return !validRangeOptions.includes(text) && /^[a-zA-Z][a-zA-Z0-9_]*$/.test(text);
   }
 

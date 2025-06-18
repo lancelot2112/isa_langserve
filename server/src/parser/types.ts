@@ -63,6 +63,10 @@ export enum TokenType {
   INDEX_RANGE_SEPARATOR = 'indexRangeSeparator',
   INDEXED_FIELD_TAG = 'indexedFieldTag',
   
+  // Bus range operators
+  BUS_RANGE_SEPARATOR = 'busRangeSeparator',   // -- for range format
+  BUS_SIZE_SEPARATOR = 'busSizeSeparator',     // _ for size format
+  
   // Context indicators
   CONTEXT_BRACKET = 'contextBracket',
   COMMENT = 'comment',
@@ -154,11 +158,18 @@ export interface BusNode extends ParseNode {
 }
 
 export interface RangeDefinition {
-  busAddress: number;
   spaceTag: string;
+  deviceOffset?: number;  // Offset within target space (after ; in spaceTag)
+  busRange: {
+    format: 'range' | 'size';  // -- or _ format
+    start: number;
+    end?: number;     // For range format (start--end)
+    size?: number;    // For size format (start_size)
+  };
   priority?: number;
-  offset?: number;
-  busLength?: number;
+  redirect?: number;
+  description?: string;
+  device?: string;
 }
 
 // Numeric literal types
