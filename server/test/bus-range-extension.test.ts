@@ -117,8 +117,8 @@ describe('Enhanced Bus Range Syntax', () => {
       const offsetToken = tokens.find(t => t.text === 'offset');
       const buslenToken = tokens.find(t => t.text === 'buslen');
       
-      expect(offsetToken?.type).toBe(TokenType.FIELD_REFERENCE);
-      expect(buslenToken?.type).toBe(TokenType.FIELD_REFERENCE);
+      expect(offsetToken?.type).toBe(TokenType.IDENTIFIER);
+      expect(buslenToken?.type).toBe(TokenType.IDENTIFIER);
     });
   });
 
