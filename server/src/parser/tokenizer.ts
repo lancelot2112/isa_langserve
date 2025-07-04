@@ -126,7 +126,11 @@ export class ISATokenizer {
       return;
     }
     
-    // Arrow operator (->) is no longer supported - breaking change
+    // Legacy arrow operator (->) - tokenize but don't use semantically
+    if (char === '-' && this.position + 1 < this.content.length && this.content[this.position + 1] === '>') {
+      this.tokenizeLegacyArrowOperator();
+      return;
+    }
     
     // Numeric literals or identifiers
     if (char && (this.isAlphaNumeric(char) || char === '0')) {
@@ -292,10 +296,19 @@ export class ISATokenizer {
     this.advance(); // skip '$'
     
     // Read the space tag following the $, but stop at ';' for context operator
+    // Also stop at '-' if it's followed by '>' (legacy arrow operator)
     while (this.position < this.content.length && 
            this.content[this.position] && 
            this.content[this.position] !== ';' &&
            this.isIdentifierChar(this.content[this.position]!)) {
+      
+      // Stop if we encounter '->' (legacy arrow operator)
+      if (this.content[this.position] === '-' && 
+          this.position + 1 < this.content.length && 
+          this.content[this.position + 1] === '>') {
+        break;
+      }
+      
       this.advance();
     }
     
@@ -318,6 +331,15 @@ export class ISATokenizer {
     
     const location = this.createLocation(start, this.getCurrentPosition());
     this.addToken(TokenType.CONTEXT_OPERATOR, ';', location);
+  }
+
+  private tokenizeLegacyArrowOperator(): void {
+    const start = this.getCurrentPosition();
+    this.advance(); // skip '-'
+    this.advance(); // skip '>'
+    
+    const location = this.createLocation(start, this.getCurrentPosition());
+    this.addToken(TokenType.CONTEXT_OPERATOR, '->', location);
   }
 
   private tokenizeIndexBracket(): void {
@@ -472,11 +494,23 @@ export class ISATokenizer {
       return optionType;
     }
     
+    // Look ahead to see if this identifier is followed by an operand list (parentheses)
+    // This indicates an instruction definition regardless of the directive type
+    const lookAheadContent = this.content.slice(this.position, this.position + 50);
+    const hasOperandList = /^\s*\(/.test(lookAheadContent);
+    
     // If we're immediately after a space directive like :reg, :insn, etc., this is a field or instruction tag
-    const immediateDirectiveMatch = recentContent.match(/:(\w+)\s+[a-zA-Z0-9_.-]+(\[[^\]]*\])?$/);
+    // Updated regex to handle trailing whitespace and content
+    const immediateDirectiveMatch = recentContent.match(/:(\w+)\s+[a-zA-Z0-9_.-]+(\[[^\]]*\])?\s*$/);
     if (immediateDirectiveMatch && this.currentSpaceTag) {
       const directiveType = immediateDirectiveMatch[1];
-      // For instruction directives, return INSTRUCTION_TAG
+      
+      // If there's an operand list following, this is an instruction tag
+      if (hasOperandList) {
+        return TokenType.INSTRUCTION_TAG;
+      }
+      
+      // For explicit instruction directives, return INSTRUCTION_TAG
       if (directiveType === 'insn' || directiveType === 'instruction') {
         return TokenType.INSTRUCTION_TAG;
       }

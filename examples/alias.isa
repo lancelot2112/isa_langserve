@@ -43,7 +43,7 @@
 #this instruction is 32 bit (default space size) but is using size 16 fields, should be valid
 #since 32 > 16.  NOTE: the name tag includes a . which should be valid
 # Accessing SPR22;lsb validly by first referencing the space using the $<spacetag> context operator
-:other 32bitinsn. (overlap,AA) mask={opcd5=0b111 @(31)=1 $reg;SPR22;lsb=1}
+:other insn32bit. (overlap,AA) mask={opcd5=0b111 @(31)=1 $reg;SPR22;lsb=1}
 
 #INVALID
 # ERR1 uses a field that's not defined in our space 'not_def' should be underlined.
